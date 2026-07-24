@@ -330,6 +330,7 @@ html, body {
 
 /* ========== 页面：拍照 ========== */
 .camera-section {
+  padding-bottom: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -360,7 +361,118 @@ html, body {
 .camera-preview .placeholder .pl-icon { font-size: 3rem; margin-bottom: 8px; }
 .camera-preview .placeholder .pl-text { font-size: 0.85rem; }
 
-/* 裁剪模式 */
+/* 裁剪模式 - 选框工具 */
+.crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  display: none;
+  flex-direction: column;
+}
+.crop-overlay.show { display: flex; }
+.crop-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.crop-topbar button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+.crop-topbar button:hover { background: rgba(255,255,255,0.1); }
+.crop-topbar .ct-cancel { color: rgba(255,255,255,0.6); }
+.crop-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+.crop-body img {
+  position: absolute;
+  max-width: none;
+  max-height: none;
+  cursor: default;
+}
+.crop-select {
+  position: absolute;
+  border: 2px solid #818cf8;
+  background: rgba(129, 140, 248, 0.08);
+  z-index: 10;
+  cursor: move;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+}
+.crop-select .cs-label {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  font-size: 0.7rem;
+  color: #818cf8;
+  white-space: nowrap;
+}
+.crop-select .cs-handle {
+  position: absolute;
+  width: 22px; height: 22px;
+  z-index: 11;
+}
+.crop-select .cs-handle::after {
+  content: "";
+  position: absolute;
+  width: 12px; height: 12px;
+  background: #818cf8;
+  border: 2px solid #fff;
+  border-radius: 3px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.cs-h-tl { top: -11px; left: -11px; cursor: nw-resize; }
+.cs-h-tr { top: -11px; right: -11px; cursor: ne-resize; }
+.cs-h-bl { bottom: -11px; left: -11px; cursor: sw-resize; }
+.cs-h-br { bottom: -11px; right: -11px; cursor: se-resize; }
+.cs-h-t { top: -11px; left: 50%; margin-left: -11px; cursor: n-resize; }
+.cs-h-b { bottom: -11px; left: 50%; margin-left: -11px; cursor: s-resize; }
+.cs-h-l { top: 50%; left: -11px; margin-top: -11px; cursor: w-resize; }
+.cs-h-r { top: 50%; right: -11px; margin-top: -11px; cursor: e-resize; }
+.crop-bottombar {
+  padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.crop-bottombar button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.crop-bottombar .cb-confirm {
+  background: linear-gradient(135deg, #6366f1, #06b6d4);
+  color: #fff;
+}
+.crop-bottombar .cb-redo {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
 .crop-wrap {
   position: relative;
   width: 100%;
@@ -1043,23 +1155,30 @@ html, body {
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
-      <!-- 裁剪模式 -->
-<div class="crop-wrap" id="cropWrap" style="display:none">
-  <img id="cropImg" src="" alt="拖动图片定位题目">
-  <div class="crop-frame">
-    <span class="crop-corner tl"></span>
-    <span class="crop-corner tr"></span>
-    <span class="crop-corner bl"></span>
-    <span class="crop-corner br"></span>
+      <!-- 裁剪覆盖层（全屏选框） -->
+<div class="crop-overlay" id="cropOverlay">
+  <div class="crop-topbar">
+    <span>✂️ 在图片上框选题目区域</span>
+    <button class="ct-cancel" onclick="cancelCrop()">取消</button>
   </div>
-</div>
-<div class="crop-actions" id="cropActions" style="display:none">
-  <button class="cam-btn primary" onclick="confirmCrop()" style="flex:1;justify-content:center">
-    <span class="cb-icon">✂️</span> 识别框内文字
-  </button>
-  <button class="cam-btn outline" onclick="cancelCrop()" style="flex:1;justify-content:center">
-    取消裁剪
-  </button>
+  <div class="crop-body" id="cropBody">
+    <img id="cropImg" src="" alt="裁剪图片">
+    <div class="crop-select" id="cropSelect">
+      <span class="cs-label">拖拽框角和边缘调节大小</span>
+      <div class="cs-handle cs-h-tl"></div>
+      <div class="cs-handle cs-h-tr"></div>
+      <div class="cs-handle cs-h-bl"></div>
+      <div class="cs-handle cs-h-br"></div>
+      <div class="cs-handle cs-h-t"></div>
+      <div class="cs-handle cs-h-b"></div>
+      <div class="cs-handle cs-h-l"></div>
+      <div class="cs-handle cs-h-r"></div>
+    </div>
+  </div>
+  <div class="crop-bottombar">
+    <button class="cb-redo" onclick="resetCropSelect()">重新框选</button>
+    <button class="cb-confirm" onclick="confirmCrop()">✂️ 裁剪并识别</button>
+  </div>
 </div>
 <div class="camera-section" id="manualEntry" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
         <div class="form-group" style="width:100%">
@@ -1393,137 +1512,202 @@ function takePhoto() {
 }
 
 function startCrop() {
-  showProcessing('准备裁剪...', '');
   var img = document.getElementById('cropImg');
   img.src = capturedImage;
-
-  // 计算图片初始尺寸（自适应）
+  
   img.onload = function() {
-    var wrap = document.getElementById('cropWrap');
-    var wrapW = wrap.offsetWidth;
-    var wrapH = wrap.offsetHeight;
-    var scale = Math.max(wrapW / img.naturalWidth, wrapH / img.naturalHeight) * 2;
+    var body = document.getElementById('cropBody');
+    var bodyW = body.offsetWidth;
+    var bodyH = body.offsetHeight;
+    
+    // 缩放图片适应屏幕
+    var scale = Math.min(bodyW / img.naturalWidth, bodyH / img.naturalHeight);
     img.style.width = (img.naturalWidth * scale) + 'px';
     img.style.height = (img.naturalHeight * scale) + 'px';
-    img.style.left = (wrapW - img.offsetWidth) / 2 + 'px';
-    img.style.top = (wrapH - img.offsetHeight) / 2 + 'px';
-
-    document.getElementById('cameraPreview').style.display = 'none';
-    document.getElementById('cameraControls').style.display = 'none';
-    document.getElementById('cropWrap').style.display = 'block';
-    document.getElementById('cropActions').style.display = 'flex';
-    document.getElementById('manualEntry').style.display = 'none';
-    hideProcessing();
+    img.style.left = (bodyW - img.naturalWidth * scale) / 2 + 'px';
+    img.style.top = (bodyH - img.naturalHeight * scale) / 2 + 'px';
+    
+    // 图片缩放比例记录
+    img._scale = scale;
+    
+    // 显示覆盖层
+    document.getElementById('cropOverlay').classList.add('show');
+    
+    // 创建默认选框（居中，60%宽，35%高）
+    resetCropSelect();
   };
+  
+  // 容错：如果图片已缓存，onload 可能不触发
+  if (img.complete && img.naturalWidth > 0) {
+    img.onload();
+  }
+}
+
+function resetCropSelect() {
+  var body = document.getElementById('cropBody');
+  var sel = document.getElementById('cropSelect');
+  var bw = body.offsetWidth;
+  var bh = body.offsetHeight;
+  var sw = bw * 0.6;
+  var sh = bh * 0.35;
+  sel.style.left = (bw - sw) / 2 + 'px';
+  sel.style.top = (bh - sh) / 2 + 'px';
+  sel.style.width = sw + 'px';
+  sel.style.height = sh + 'px';
+  sel.style.display = 'block';
+}
+
+function cancelCrop() {
+  document.getElementById('cropOverlay').classList.remove('show');
+  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
 }
 
 function confirmCrop() {
   var img = document.getElementById('cropImg');
-  var wrap = document.getElementById('cropWrap');
-  var wrapW = wrap.offsetWidth;
-  var wrapH = wrap.offsetHeight;
-
-  // 计算裁剪框的位置（居中，75%宽，40%高）
-  var frameW = wrapW * 0.75;
-  var frameH = wrapH * 0.4;
-  var frameX = (wrapW - frameW) / 2;
-  var frameY = (wrapH - frameH) / 2;
-
-  // 图片实际位置和缩放
-  var imgLeft = parseFloat(img.style.left) || 0;
-  var imgTop = parseFloat(img.style.top) || 0;
-  var imgDisplayW = img.offsetWidth;
-  var imgDisplayH = img.offsetHeight;
-
-  // 计算框选区域在原图中的对应位置
-  var scaleX = img.naturalWidth / imgDisplayW;
-  var scaleY = img.naturalHeight / imgDisplayH;
-
-  var sx = (frameX - imgLeft) * scaleX;
-  var sy = (frameY - imgTop) * scaleY;
-  var sw = frameW * scaleX;
-  var sh = frameH * scaleY;
-
+  var sel = document.getElementById('cropSelect');
+  var body = document.getElementById('cropBody');
+  
+  var sx = parseFloat(sel.style.left) - img.offsetLeft;
+  var sy = parseFloat(sel.style.top) - img.offsetTop;
+  var sw = parseFloat(sel.style.width);
+  var sh = parseFloat(sel.style.height);
+  
   // 边界保护
-  sx = Math.max(0, sx);
-  sy = Math.max(0, sy);
-  sw = Math.min(img.naturalWidth - sx, sw);
-  sh = Math.min(img.naturalHeight - sy, sh);
-  if (sw < 10 || sh < 10) { showToast('框选区域太小，请调整'); return; }
-
+  if (sw < 20 || sh < 20) { showToast('选框太小了，请调大一点'); return; }
+  
+  // 转换到原图坐标
+  var scale = img._scale || (img.naturalWidth / img.offsetWidth);
+  var cropX = Math.max(0, sx / scale);
+  var cropY = Math.max(0, sy / scale);
+  var cropW = Math.min(img.naturalWidth - cropX, sw / scale);
+  var cropH = Math.min(img.naturalHeight - cropY, sh / scale);
+  
+  if (cropW < 10 || cropH < 10) { showToast('选框位置不对，请重新框选'); return; }
+  
   // 裁切图片
   var canvas = document.createElement('canvas');
-  canvas.width = sw;
-  canvas.height = sh;
+  canvas.width = cropW;
+  canvas.height = cropH;
   var ctx = canvas.getContext('2d');
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
   capturedImage = canvas.toDataURL('image/jpeg', 0.95);
-
-  // 退出裁剪模式
-  document.getElementById('cropWrap').style.display = 'none';
-  document.getElementById('cropActions').style.display = 'none';
-  document.getElementById('cameraPreview').style.display = '';
-  document.getElementById('cameraControls').style.display = 'flex';
-
-  // 显示裁切后的图片
+  
+  // 关闭裁剪
+  document.getElementById('cropOverlay').classList.remove('show');
+  
+  // 显示裁切结果
   document.getElementById('cameraPreview').innerHTML = `<img src="${capturedImage}" alt="裁剪结果">`;
   document.getElementById('btnOcr').textContent = '🤖 AI识别';
   showToast('✅ 已裁剪，点击AI识别');
 }
 
-function cancelCrop() {
-  document.getElementById('cropWrap').style.display = 'none';
-  document.getElementById('cropActions').style.display = 'none';
-  document.getElementById('cameraPreview').style.display = '';
-  document.getElementById('cameraControls').style.display = 'flex';
-  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
+// ------ 选框交互（拖拽移动 + 拖拽调整大小） ------
+var _cropState = null;
+
+function getCropEvent(e) {
+  var t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX, y: t.clientY, target: e.target };
 }
 
-// 图片拖拽（鼠标 + 触控）
-var _dragData = null;
-document.addEventListener('mousedown', onDragStart);
-document.addEventListener('mousemove', onDragMove);
-document.addEventListener('mouseup', onDragEnd);
-document.addEventListener('touchstart', onTouchStart, {passive:false});
-document.addEventListener('touchmove', onTouchMove, {passive:false});
-document.addEventListener('touchend', onDragEnd);
+document.addEventListener('mousedown', function(e) { cropDragStart(getCropEvent(e)); });
+document.addEventListener('mousemove', function(e) { cropDragMove(getCropEvent(e)); });
+document.addEventListener('mouseup', function() { cropDragEnd(); });
+document.addEventListener('touchstart', function(e) {
+  if (e.target.closest && e.target.closest('#cropOverlay')) {
+    cropDragStart(getCropEvent(e));
+    e.preventDefault();
+  }
+}, {passive: false});
+document.addEventListener('touchmove', function(e) {
+  if (_cropState) { cropDragMove(getCropEvent(e)); e.preventDefault(); }
+}, {passive: false});
+document.addEventListener('touchend', function() { cropDragEnd(); });
 
-function onTouchStart(e) {
-  var t = e.touches[0];
-  onDragStart({target: e.target, clientX: t.clientX, clientY: t.clientY, preventDefault: function(){e.preventDefault();}});
-}
-function onTouchMove(e) {
-  var t = e.touches[0];
-  onDragMove({clientX: t.clientX, clientY: t.clientY, preventDefault: function(){e.preventDefault();}});
-  e.preventDefault();
+function cropDragStart(e) {
+  var overlay = document.getElementById('cropOverlay');
+  if (!overlay.classList.contains('show')) return;
+  
+  var sel = document.getElementById('cropSelect');
+  var body = document.getElementById('cropBody');
+  var bw = body.offsetWidth, bh = body.offsetHeight;
+  var sl = parseFloat(sel.style.left), st = parseFloat(sel.style.top);
+  var sw = parseFloat(sel.style.width), sh = parseFloat(sel.style.height);
+  
+  // 检测点击的是否在选框中
+  var isInSel = e.x - body.getBoundingClientRect().left >= sl && e.x - body.getBoundingClientRect().left <= sl + sw &&
+                e.y - body.getBoundingClientRect().top >= st && e.y - body.getBoundingClientRect().top <= st + sh;
+  
+  if (!isInSel) return;
+  
+  // 检测点击的是否是手柄
+  var handle = e.target.closest ? e.target.closest('.cs-handle') : null;
+  
+  if (handle) {
+    // 调整大小
+    var dir = '';
+    if (handle.classList.contains('cs-h-tl')) dir = 'tl';
+    else if (handle.classList.contains('cs-h-tr')) dir = 'tr';
+    else if (handle.classList.contains('cs-h-bl')) dir = 'bl';
+    else if (handle.classList.contains('cs-h-br')) dir = 'br';
+    else if (handle.classList.contains('cs-h-t')) dir = 't';
+    else if (handle.classList.contains('cs-h-b')) dir = 'b';
+    else if (handle.classList.contains('cs-h-l')) dir = 'l';
+    else if (handle.classList.contains('cs-h-r')) dir = 'r';
+    
+    _cropState = {
+      type: 'resize', dir: dir,
+      startX: e.x, startY: e.y,
+      sx: sl, sy: st, sw: sw, sh: sh
+    };
+  } else if (e.target === sel || e.target.closest === null) {
+    // 拖动选框
+    _cropState = {
+      type: 'move',
+      startX: e.x, startY: e.y,
+      sx: sl, sy: st
+    };
+  }
 }
 
-function onDragStart(e) {
-  var img = document.getElementById('cropImg');
-  if (!img || document.getElementById('cropWrap').style.display !== 'block') return;
-  if (e.target !== img) return;
-  _dragData = { startX: e.clientX, startY: e.clientY, left: parseFloat(img.style.left) || 0, top: parseFloat(img.style.top) || 0 };
-  e.preventDefault();
+function cropDragMove(e) {
+  if (!_cropState) return;
+  var sel = document.getElementById('cropSelect');
+  var body = document.getElementById('cropBody');
+  var bw = body.offsetWidth, bh = body.offsetHeight;
+  var dx = e.x - _cropState.startX;
+  var dy = e.y - _cropState.startY;
+  var minS = 40;
+  
+  if (_cropState.type === 'move') {
+    var nx = Math.max(0, Math.min(bw - parseFloat(sel.style.width), _cropState.sx + dx));
+    var ny = Math.max(0, Math.min(bh - parseFloat(sel.style.height), _cropState.sy + dy));
+    sel.style.left = nx + 'px';
+    sel.style.top = ny + 'px';
+  } else if (_cropState.type === 'resize') {
+    var left = _cropState.sx, top = _cropState.sy, right = _cropState.sx + _cropState.sw, bottom = _cropState.sy + _cropState.sh;
+    var d = _cropState.dir;
+    
+    if (d.indexOf('l') >= 0) { left = Math.min(_cropState.sx + dx, right - minS); }
+    if (d.indexOf('r') >= 0) { right = Math.max(_cropState.sx + _cropState.sw + dx, left + minS); }
+    if (d.indexOf('t') >= 0) { top = Math.min(_cropState.sy + dy, bottom - minS); }
+    if (d.indexOf('b') >= 0) { bottom = Math.max(_cropState.sy + _cropState.sh + dy, top + minS); }
+    
+    // 边界限制
+    left = Math.max(0, left);
+    top = Math.max(0, top);
+    right = Math.min(bw, right);
+    bottom = Math.min(bh, bottom);
+    
+    sel.style.left = left + 'px';
+    sel.style.top = top + 'px';
+    sel.style.width = (right - left) + 'px';
+    sel.style.height = (bottom - top) + 'px';
+  }
 }
 
-function onDragMove(e) {
-  if (!_dragData) return;
-  var img = document.getElementById('cropImg');
-  var wrap = document.getElementById('cropWrap');
-  var dx = e.clientX - _dragData.startX;
-  var dy = e.clientY - _dragData.startY;
-  var left = _dragData.left + dx;
-  var top = _dragData.top + dy;
-  // 限制拖拽范围
-  left = Math.min(wrap.offsetWidth * 0.3, Math.max(left, wrap.offsetWidth - img.offsetWidth - wrap.offsetWidth * 0.3));
-  top = Math.min(wrap.offsetHeight * 0.3, Math.max(top, wrap.offsetHeight - img.offsetHeight - wrap.offsetHeight * 0.3));
-  img.style.left = left + 'px';
-  img.style.top = top + 'px';
-  e.preventDefault();
+function cropDragEnd() {
+  _cropState = null;
 }
-
-function onDragEnd() {
-  _dragData = null;
 }
 
 function retakePhoto() {
