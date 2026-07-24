@@ -360,6 +360,65 @@ html, body {
 .camera-preview .placeholder .pl-icon { font-size: 3rem; margin-bottom: 8px; }
 .camera-preview .placeholder .pl-text { font-size: 0.85rem; }
 
+/* 裁剪模式 */
+.crop-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: #000;
+  border-radius: 12px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.crop-wrap img {
+  position: absolute;
+  cursor: grab;
+  touch-action: none;
+  max-width: none;
+  max-height: none;
+}
+.crop-wrap img:active { cursor: grabbing; }
+.crop-frame {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 75%;
+  height: 40%;
+  border: 2px solid rgba(255,255,255,0.8);
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 5;
+}
+.crop-frame::before {
+  content: "将题目拖到框内";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.7);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.crop-frame .crop-corner {
+  position: absolute;
+  width: 16px; height: 16px;
+  border-color: #fff;
+  border-style: solid;
+  border-width: 0;
+}
+.crop-frame .crop-corner.tl { top: -3px; left: -3px; border-top-width: 3px; border-left-width: 3px; border-radius: 4px 0 0 0; }
+.crop-frame .crop-corner.tr { top: -3px; right: -3px; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
+.crop-frame .crop-corner.bl { bottom: -3px; left: -3px; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
+.crop-frame .crop-corner.br { bottom: -3px; right: -3px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
+.crop-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .camera-controls {
   display: flex;
   gap: 12px;
@@ -962,7 +1021,7 @@ html, body {
             <div class="pl-text">点击下方按钮拍照或选择图片</div>
           </div>
         </div>
-        <div class="camera-controls">
+        <div class="camera-controls" id="cameraControls">
           <button class="cam-btn primary" id="btnCamera" onclick="startCamera()">
             <span class="cb-icon">📸</span> 拍照
           </button>
@@ -975,7 +1034,7 @@ html, body {
           <button class="cam-btn outline" id="btnManual" onclick="showManualEntry()">
             <span class="cb-icon">✏️</span> 手动输入
           </button>
-          <button class="cam-btn primary" id="btnOcr" style="display:none" onclick="processImage()">
+          <button class="cam-btn primary" id="btnOcr" style="display:none" onclick="handleOcrClick()">
             <span class="cb-icon">🤖</span> AI识别
           </button>
           <button class="cam-btn outline" id="btnRetake" style="display:none" onclick="retakePhoto()">
@@ -984,7 +1043,25 @@ html, body {
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
-      <div class="camera-section" id="manualEntry" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
+      <!-- 裁剪模式 -->
+<div class="crop-wrap" id="cropWrap" style="display:none">
+  <img id="cropImg" src="" alt="拖动图片定位题目">
+  <div class="crop-frame">
+    <span class="crop-corner tl"></span>
+    <span class="crop-corner tr"></span>
+    <span class="crop-corner bl"></span>
+    <span class="crop-corner br"></span>
+  </div>
+</div>
+<div class="crop-actions" id="cropActions" style="display:none">
+  <button class="cam-btn primary" onclick="confirmCrop()" style="flex:1;justify-content:center">
+    <span class="cb-icon">✂️</span> 识别框内文字
+  </button>
+  <button class="cam-btn outline" onclick="cancelCrop()" style="flex:1;justify-content:center">
+    取消裁剪
+  </button>
+</div>
+<div class="camera-section" id="manualEntry" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
         <div class="form-group" style="width:100%">
           <label>输入题目内容</label>
           <textarea id="manualText" rows="4" placeholder="将题目或错题内容粘贴到这里..."></textarea>
@@ -1256,7 +1333,8 @@ async function startCamera() {
     document.getElementById('btnCamera').textContent = '📸 拍照';
     document.getElementById('btnCamera').onclick = takePhoto;
     document.getElementById('btnSwitchCam').style.display = '';
-    document.getElementById('btnOcr').style.display = 'none';
+    document.getElementById('btnOcr').textContent = '✂️ 框选识别';
+  document.getElementById('btnOcr').style.display = 'none';
     document.getElementById('btnRetake').style.display = 'none';
   } catch (err) {
     // 如果后置摄像头失败，自动尝试前置
@@ -1309,13 +1387,149 @@ function takePhoto() {
   document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnSwitchCam').style.display = 'none';
+  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
   document.getElementById('btnOcr').style.display = '';
   document.getElementById('btnRetake').style.display = '';
+}
+
+function startCrop() {
+  showProcessing('准备裁剪...', '');
+  var img = document.getElementById('cropImg');
+  img.src = capturedImage;
+
+  // 计算图片初始尺寸（自适应）
+  img.onload = function() {
+    var wrap = document.getElementById('cropWrap');
+    var wrapW = wrap.offsetWidth;
+    var wrapH = wrap.offsetHeight;
+    var scale = Math.max(wrapW / img.naturalWidth, wrapH / img.naturalHeight) * 2;
+    img.style.width = (img.naturalWidth * scale) + 'px';
+    img.style.height = (img.naturalHeight * scale) + 'px';
+    img.style.left = (wrapW - img.offsetWidth) / 2 + 'px';
+    img.style.top = (wrapH - img.offsetHeight) / 2 + 'px';
+
+    document.getElementById('cameraPreview').style.display = 'none';
+    document.getElementById('cameraControls').style.display = 'none';
+    document.getElementById('cropWrap').style.display = 'block';
+    document.getElementById('cropActions').style.display = 'flex';
+    document.getElementById('manualEntry').style.display = 'none';
+    hideProcessing();
+  };
+}
+
+function confirmCrop() {
+  var img = document.getElementById('cropImg');
+  var wrap = document.getElementById('cropWrap');
+  var wrapW = wrap.offsetWidth;
+  var wrapH = wrap.offsetHeight;
+
+  // 计算裁剪框的位置（居中，75%宽，40%高）
+  var frameW = wrapW * 0.75;
+  var frameH = wrapH * 0.4;
+  var frameX = (wrapW - frameW) / 2;
+  var frameY = (wrapH - frameH) / 2;
+
+  // 图片实际位置和缩放
+  var imgLeft = parseFloat(img.style.left) || 0;
+  var imgTop = parseFloat(img.style.top) || 0;
+  var imgDisplayW = img.offsetWidth;
+  var imgDisplayH = img.offsetHeight;
+
+  // 计算框选区域在原图中的对应位置
+  var scaleX = img.naturalWidth / imgDisplayW;
+  var scaleY = img.naturalHeight / imgDisplayH;
+
+  var sx = (frameX - imgLeft) * scaleX;
+  var sy = (frameY - imgTop) * scaleY;
+  var sw = frameW * scaleX;
+  var sh = frameH * scaleY;
+
+  // 边界保护
+  sx = Math.max(0, sx);
+  sy = Math.max(0, sy);
+  sw = Math.min(img.naturalWidth - sx, sw);
+  sh = Math.min(img.naturalHeight - sy, sh);
+  if (sw < 10 || sh < 10) { showToast('框选区域太小，请调整'); return; }
+
+  // 裁切图片
+  var canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  capturedImage = canvas.toDataURL('image/jpeg', 0.95);
+
+  // 退出裁剪模式
+  document.getElementById('cropWrap').style.display = 'none';
+  document.getElementById('cropActions').style.display = 'none';
+  document.getElementById('cameraPreview').style.display = '';
+  document.getElementById('cameraControls').style.display = 'flex';
+
+  // 显示裁切后的图片
+  document.getElementById('cameraPreview').innerHTML = `<img src="${capturedImage}" alt="裁剪结果">`;
+  document.getElementById('btnOcr').textContent = '🤖 AI识别';
+  showToast('✅ 已裁剪，点击AI识别');
+}
+
+function cancelCrop() {
+  document.getElementById('cropWrap').style.display = 'none';
+  document.getElementById('cropActions').style.display = 'none';
+  document.getElementById('cameraPreview').style.display = '';
+  document.getElementById('cameraControls').style.display = 'flex';
+  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
+}
+
+// 图片拖拽（鼠标 + 触控）
+var _dragData = null;
+document.addEventListener('mousedown', onDragStart);
+document.addEventListener('mousemove', onDragMove);
+document.addEventListener('mouseup', onDragEnd);
+document.addEventListener('touchstart', onTouchStart, {passive:false});
+document.addEventListener('touchmove', onTouchMove, {passive:false});
+document.addEventListener('touchend', onDragEnd);
+
+function onTouchStart(e) {
+  var t = e.touches[0];
+  onDragStart({target: e.target, clientX: t.clientX, clientY: t.clientY, preventDefault: function(){e.preventDefault();}});
+}
+function onTouchMove(e) {
+  var t = e.touches[0];
+  onDragMove({clientX: t.clientX, clientY: t.clientY, preventDefault: function(){e.preventDefault();}});
+  e.preventDefault();
+}
+
+function onDragStart(e) {
+  var img = document.getElementById('cropImg');
+  if (!img || document.getElementById('cropWrap').style.display !== 'block') return;
+  if (e.target !== img) return;
+  _dragData = { startX: e.clientX, startY: e.clientY, left: parseFloat(img.style.left) || 0, top: parseFloat(img.style.top) || 0 };
+  e.preventDefault();
+}
+
+function onDragMove(e) {
+  if (!_dragData) return;
+  var img = document.getElementById('cropImg');
+  var wrap = document.getElementById('cropWrap');
+  var dx = e.clientX - _dragData.startX;
+  var dy = e.clientY - _dragData.startY;
+  var left = _dragData.left + dx;
+  var top = _dragData.top + dy;
+  // 限制拖拽范围
+  left = Math.min(wrap.offsetWidth * 0.3, Math.max(left, wrap.offsetWidth - img.offsetWidth - wrap.offsetWidth * 0.3));
+  top = Math.min(wrap.offsetHeight * 0.3, Math.max(top, wrap.offsetHeight - img.offsetHeight - wrap.offsetHeight * 0.3));
+  img.style.left = left + 'px';
+  img.style.top = top + 'px';
+  e.preventDefault();
+}
+
+function onDragEnd() {
+  _dragData = null;
 }
 
 function retakePhoto() {
   capturedImage = null;
   document.getElementById('cameraPreview').innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">点击下方按钮拍照或选择图片</div></div>`;
+  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
   document.getElementById('btnOcr').style.display = 'none';
   document.getElementById('btnRetake').style.display = 'none';
   document.getElementById('btnSwitchCam').style.display = 'none';
@@ -1337,6 +1551,7 @@ function onFileSelected(event) {
     capturedImage = e.target.result;
     const preview = document.getElementById('cameraPreview');
     preview.innerHTML = `<img src="${capturedImage}" alt="已选择图片">`;
+    document.getElementById('btnOcr').textContent = '✂️ 框选识别';
     document.getElementById('btnOcr').style.display = '';
     document.getElementById('btnRetake').style.display = '';
   };
@@ -1347,6 +1562,15 @@ function onFileSelected(event) {
 // ============================================================
 // OCR 识别
 // ============================================================
+function handleOcrClick() {
+  var btn = document.getElementById('btnOcr');
+  if (btn.textContent.indexOf('框选') >= 0) {
+    startCrop();
+  } else {
+    processImage();
+  }
+}
+
 async function processImage() {
   if (!capturedImage) { showToast('请先拍照或选择图片'); return; }
 
