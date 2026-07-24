@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -966,6 +966,9 @@ html, body {
           <button class="cam-btn primary" id="btnCamera" onclick="startCamera()">
             <span class="cb-icon">📸</span> 拍照
           </button>
+          <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()">
+            <span class="cb-icon">🔄</span> 切换
+          </button>
           <button class="cam-btn secondary" onclick="uploadImage()">
             <span class="cb-icon">🖼️</span> 选择图片
           </button>
@@ -1173,6 +1176,7 @@ let reviewIndex = 0;
 let reviewAnswerShown = false;
 let selectedSubjects = ['数学', '物理', '化学', '生物', '英语']; // 默认
 let cameraStream = null;
+let currentFacingMode = 'environment';
 
 // ============================================================
 // 初始化
@@ -1222,6 +1226,9 @@ function navigateTo(page) {
   if (page === 'home') { updateHomeStats(); updateRecentList(); }
   if (page === 'errors') { renderErrorList(); }
   if (page === 'review') { initReview(); }
+  if (page === 'camera' && !capturedImage && !videoElem) {
+    setTimeout(startCamera, 500);
+  }
 
   currentPage = page;
 }
@@ -1237,23 +1244,44 @@ let videoElem = null;
 
 async function startCamera() {
   const preview = document.getElementById('cameraPreview');
-  preview.innerHTML = '<video id="video" autoplay playsinline></video>';
+  preview.innerHTML = '<video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
   videoElem = document.getElementById('video');
 
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } }
+      video: { facingMode: currentFacingMode, width: { ideal: 1920 }, height: { ideal: 1440 } }
     });
     videoElem.srcObject = cameraStream;
 
     document.getElementById('btnCamera').textContent = '📸 拍照';
     document.getElementById('btnCamera').onclick = takePhoto;
+    document.getElementById('btnSwitchCam').style.display = '';
     document.getElementById('btnOcr').style.display = 'none';
     document.getElementById('btnRetake').style.display = 'none';
   } catch (err) {
-    showToast('无法启动相机: ' + err.message);
-    preview.innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">相机不可用，请选择图片上传</div></div>`;
+    // 如果后置摄像头失败，自动尝试前置
+    if (currentFacingMode === 'environment') {
+      currentFacingMode = 'user';
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        videoElem.srcObject = cameraStream;
+        document.getElementById('btnCamera').textContent = '📸 拍照';
+        document.getElementById('btnCamera').onclick = takePhoto;
+        document.getElementById('btnSwitchCam').style.display = '';
+        return;
+      } catch(e2) {}
+    }
+    showToast('打不开相机，试试"选择图片"');
+    preview.innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">打不开相机，点"选择图片"上传</div></div>`;
   }
+}
+
+function switchCamera() {
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  stopCamera();
+  startCamera();
 }
 
 function stopCamera() {
@@ -1280,6 +1308,7 @@ function takePhoto() {
 
   document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
+  document.getElementById('btnSwitchCam').style.display = 'none';
   document.getElementById('btnOcr').style.display = '';
   document.getElementById('btnRetake').style.display = '';
 }
@@ -1289,6 +1318,7 @@ function retakePhoto() {
   document.getElementById('cameraPreview').innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">点击下方按钮拍照或选择图片</div></div>`;
   document.getElementById('btnOcr').style.display = 'none';
   document.getElementById('btnRetake').style.display = 'none';
+  document.getElementById('btnSwitchCam').style.display = 'none';
   document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('manualEntry').style.display = 'none';
@@ -1320,11 +1350,12 @@ function onFileSelected(event) {
 async function processImage() {
   if (!capturedImage) { showToast('请先拍照或选择图片'); return; }
 
-  showProcessing('AI识别中...', '正在提取题目文字，请稍候');
+  showProcessing('准备AI识别...', '首次使用需要下载语言包（约3MB），请稍候');
 
   try {
     // 尝试加载 Tesseract（多 CDN 备用）
     if (typeof Tesseract === 'undefined') {
+      updateProcessing('下载识别引擎...', '正在加载OCR引擎，请保持网络通畅');
       const tesseractCDNs = [
         'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
         'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
@@ -1333,12 +1364,25 @@ async function processImage() {
       await loadScript(tesseractCDNs);
     }
 
+    updateProcessing('识别中...', '正在分析图片中的文字');
     const result = await Tesseract.recognize(
       capturedImage,
       'chi_sim+eng',
       { logger: m => {
+        if (m.status === 'loading tesseract core') {
+          updateProcessing('加载核心引擎...', m.progress ? Math.round(m.progress * 100) + '%' : '');
+        }
+        if (m.status === 'initializing tesseract') {
+          updateProcessing('初始化引擎...', '');
+        }
+        if (m.status === 'loading language traineddata') {
+          updateProcessing('下载中文语言包...', Math.round((m.progress || 0) * 100) + '%');
+        }
+        if (m.status === 'initializing api') {
+          updateProcessing('准备就绪...', '');
+        }
         if (m.status === 'recognizing text') {
-          updateProcessing('AI识别中...', `识别进度 ${Math.round(m.progress * 100)}%`);
+          updateProcessing('正在识别文字...', `${Math.round((m.progress || 0) * 100)}%`);
         }
       }}
     );
