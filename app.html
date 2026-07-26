@@ -420,49 +420,18 @@ html, body {
 }
 
 
-/* Crop overlay v2 */
-.crop-overlay {
-  position: fixed; inset: 0; z-index: 200;
-  background: #000; display: none;
-  flex-direction: column;
-}
-.crop-overlay.show { display: flex; }
-.crop-topbar {
-  display: flex; align-items: center;
-  padding: 12px 16px;
-  background: rgba(0,0,0,0.85); color: #fff;
-  font-size: 0.9rem; flex-shrink: 0;
-  justify-content: space-between;
-}
-.crop-topbar button {
-  background: none; border: none;
-  color: #fff; font-size: 0.85rem;
-  font-family: inherit; cursor: pointer;
-  padding: 6px 12px; border-radius: 6px;
-}
-.crop-topbar button:active { background: rgba(255,255,255,0.15); }
-.crop-canvas-wrap {
-  flex: 1; position: relative;
+/* Camera auto + switch */
+.cam-big-btn {
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
+  gap: 10px; width: 100%; padding: 18px;
+  border-radius: 14px; border: none;
+  background: linear-gradient(135deg, #6366f1, #06b6d4);
+  color: #fff; font-family: inherit;
+  font-size: 1.15rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s;
 }
-.crop-canvas-wrap canvas {
-  touch-action: none;
-}
-.crop-bottombar {
-  padding: 12px 16px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom,0px));
-  background: rgba(0,0,0,0.85);
-  display: flex; gap: 10px; flex-shrink: 0;
-}
-.crop-bottombar button {
-  flex: 1; padding: 12px;
-  border-radius: 10px; border: none;
-  font-family: inherit; font-size: 0.9rem;
-  font-weight: 600; cursor: pointer;
-}
-.crop-confirm { background: linear-gradient(135deg,#6366f1,#06b6d4); color: #fff; }
-.crop-reset { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.cam-big-btn:active { transform: scale(0.97); }
+.cam-big-btn .cb-icon { font-size: 1.5rem; }
 .camera-controls {
   display: flex;
   gap: 12px;
@@ -1065,43 +1034,28 @@ html, body {
             <div class="pl-text">点击下方按钮拍照或选择图片</div>
           </div>
         </div>
-        <div class="camera-controls">
-          <button class="cam-btn primary" id="btnCamera" onclick="startCamera()">
-            <span class="cb-icon">📸</span> 拍照
+        <div class="camera-controls" id="cameraControls">
+          <button class="cam-big-btn" id="btnOcr" onclick="captureAndOcr()">
+            <span class="cb-icon">🤖</span> AI识别题目
           </button>
-          <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()">
-            <span class="cb-icon">🔄</span> 切换
-          </button>
-          <button class="cam-btn secondary" onclick="uploadImage()">
-            <span class="cb-icon">🖼️</span> 选择图片
-          </button>
-          <button class="cam-btn outline" id="btnManual" onclick="showManualEntry()">
-            <span class="cb-icon">✏️</span> 手动输入
-          </button>
-          <button class="cam-btn primary" id="btnOcr" style="display:none" onclick="handleOcrClick()">
-            <span class="cb-icon">🤖</span> AI识别
-          </button>
+          <div style="display:flex;gap:8px;width:100%">
+            <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()" style="flex:1">
+              <span class="cb-icon">🔄</span> 切换
+            </button>
+            <button class="cam-btn secondary" onclick="uploadImage()" style="flex:1">
+              <span class="cb-icon">🖼️</span> 选择图片
+            </button>
+            <button class="cam-btn outline" onclick="showManualEntry()" style="flex:1">
+              <span class="cb-icon">✏️</span> 手动
+            </button>
+          </div>
           <button class="cam-btn outline" id="btnRetake" style="display:none" onclick="retakePhoto()">
             <span class="cb-icon">🔄</span> 重新拍照
           </button>
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
-      <div class="camera-section" 
-<div class="crop-overlay" id="cropOverlay">
-  <div class="crop-topbar">
-    <span>拖动选框或拖拽边角调整大小</span>
-    <button onclick="cancelCrop()">取消</button>
-  </div>
-  <div class="crop-canvas-wrap" id="cropCanvasWrap">
-    <canvas id="cropCanvas"></canvas>
-  </div>
-  <div class="crop-bottombar">
-    <button class="crop-reset" onclick="resetCrop()">重置选框</button>
-    <button class="crop-confirm" onclick="confirmCrop()">PNG 无损裁剪</button>
-  </div>
-</div>
-id="manualEntry" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
+      <div class="camera-section" id="manualEntry" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color);">
         <div class="form-group" style="width:100%">
           <label>输入题目内容</label>
           <textarea id="manualText" rows="4" placeholder="将题目或错题内容粘贴到这里..."></textarea>
@@ -1293,6 +1247,8 @@ let reviewIndex = 0;
 let reviewAnswerShown = false;
 let selectedSubjects = ['数学', '物理', '化学', '生物', '英语']; // 默认
 let cameraStream = null;
+let currentFacingMode = "environment";
+let videoElem = null;
 let currentFacingMode = 'environment';
 
 // ============================================================
@@ -1343,7 +1299,7 @@ function navigateTo(page) {
   if (page === 'home') { updateHomeStats(); updateRecentList(); }
   if (page === 'errors') { renderErrorList(); }
   if (page === 'review') { initReview(); }
-  if (page === 'camera' && !capturedImage && !videoElem) {
+  if (page === 'camera' && !capturedImage && !videoElem && !cameraStream) {
     setTimeout(startCamera, 500);
   }
 
@@ -1359,42 +1315,56 @@ function goBack() {
 // ============================================================
 let videoElem = null;
 
-async function startCamera() {
-  const preview = document.getElementById('cameraPreview');
-  preview.innerHTML = '<video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
-  videoElem = document.getElementById('video');
-
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: currentFacingMode, width: { ideal: 1920 }, height: { ideal: 1440 } }
-    });
-    videoElem.srcObject = cameraStream;
-
-    document.getElementById('btnCamera').textContent = '📸 拍照';
-    document.getElementById('btnCamera').onclick = takePhoto;
-    document.getElementById('btnSwitchCam').style.display = '';
-    document.getElementById('btnOcr').style.display = 'none';
-    document.getElementById('btnRetake').style.display = 'none';
-  } catch (err) {
-    // 如果后置摄像头失败，自动尝试前置
-    if (currentFacingMode === 'environment') {
-      currentFacingMode = 'user';
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        videoElem.srcObject = cameraStream;
-        document.getElementById('btnCamera').textContent = '📸 拍照';
-        document.getElementById('btnCamera').onclick = takePhoto;
-        document.getElementById('btnSwitchCam').style.display = '';
-        return;
-      } catch(e2) {}
-    }
-    showToast('打不开相机，试试"选择图片"');
-    preview.innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">打不开相机，点"选择图片"上传</div></div>`;
-  }
+async 
+function captureAndOcr() {
+  var v = document.getElementById('video');
+  if (!v || !v.videoWidth) { showToast('摄像头未就绪'); return; }
+  var can = document.createElement('canvas');
+  can.width = v.videoWidth;
+  can.height = v.videoHeight;
+  can.getContext('2d').drawImage(v, 0, 0);
+  capturedImage = can.toDataURL('image/jpeg', 0.9);
+  processImage();
 }
 
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(function(t) { t.stop(); }); cameraStream = null; }
+  videoElem = null;
+}
+
+function switchCamera() {
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  stopCamera();
+  startCamera();
+}
+
+function uploadImage() { document.getElementById('fileInput').click(); }
+
+function startCamera() {
+  var preview = document.getElementById('cameraPreview');
+  preview.innerHTML = '<video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
+  videoElem = document.getElementById('video');
+  try {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: { ideal: 1920 }, height: { ideal: 1440 } } })
+    .then(function(stream) {
+      cameraStream = stream;
+      videoElem.srcObject = stream;
+      document.getElementById('btnSwitchCam').style.display = '';
+    })
+    .catch(function(err) {
+      if (currentFacingMode === 'environment') {
+        currentFacingMode = 'user';
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } })
+        .then(function(s) { cameraStream = s; videoElem.srcObject = s; document.getElementById('btnSwitchCam').style.display = ''; })
+        .catch(function() { showToast('打不开相机，试试选择图片'); fallbackPreview(); });
+      } else { showToast('打不开相机，试试选择图片'); fallbackPreview(); }
+    });
+  } catch(e) { showToast('相机不可用'); fallbackPreview(); }
+}
+
+function fallbackPreview() {
+  document.getElementById('cameraPreview').innerHTML = '<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">打不开相机，点"选择图片"上传</div></div>';
+}
 function switchCamera() {
   currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
   stopCamera();
@@ -1426,169 +1396,8 @@ function takePhoto() {
   document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnSwitchCam').style.display = 'none';
-  document.getElementById('btnOcr').textContent = '✂️ 框选识别';
-    document.getElementById('btnOcr').style.display = '';
+  document.getElementById('btnOcr').style.display = '';
   document.getElementById('btnRetake').style.display = '';
-}
-
-
-// New crop - resizable rectangle on canvas (PNG lossless)
-var cCvs = null, cCtx = null, cImg = null;
-var cRect = {x:0, y:0, w:200, h:150};
-var cScale = 1;
-var cDrag = null;
-var cHandleSize = 14;
-
-function startCrop() {
-  var img = new Image();
-  img.onload = function() {
-    var wrap = document.getElementById('cropCanvasWrap');
-    var cvs = document.getElementById('cropCanvas');
-    cCvs = cvs; cImg = img;
-    var mw = wrap.offsetWidth - 20;
-    var mh = wrap.offsetHeight - 20;
-    cScale = Math.min(mw / img.naturalWidth, mh / img.naturalHeight, 1);
-    cvs.width = Math.round(img.naturalWidth * cScale);
-    cvs.height = Math.round(img.naturalHeight * cScale);
-    cCtx = cvs.getContext('2d');
-    cRect.w = Math.round(cvs.width * 0.6);
-    cRect.h = Math.round(cvs.height * 0.35);
-    cRect.x = Math.round((cvs.width - cRect.w) / 2);
-    cRect.y = Math.round((cvs.height - cRect.h) / 2);
-    cDrag = null;
-    redrawCrop();
-    document.getElementById('cropOverlay').classList.add('show');
-    cCvs.addEventListener('mousedown', function(e) { onCropDown(cropPt(e)); });
-    cCvs.addEventListener('mousemove', function(e) { onCropMove(cropPt(e)); });
-    cCvs.addEventListener('mouseup', onCropUp);
-    cCvs.addEventListener('touchstart', function(e) { onCropDown(cropPt(e)); e.preventDefault(); }, {passive:false});
-    cCvs.addEventListener('touchmove', function(e) { onCropMove(cropPt(e)); e.preventDefault(); }, {passive:false});
-    cCvs.addEventListener('touchend', onCropUp);
-
-  };
-  img.src = capturedImage;
-  if (img.complete && img.naturalWidth > 0) { img.onload(); }
-}
-
-function redrawCrop() {
-  if (!cCtx || !cImg) return;
-  var cvs = cCvs, r = cRect;
-  cCtx.clearRect(0, 0, cvs.width, cvs.height);
-  cCtx.drawImage(cImg, 0, 0, cvs.width, cvs.height);
-  // Draw dimmed overlay outside rect
-  cCtx.fillStyle = 'rgba(0,0,0,0.4)';
-  cCtx.fillRect(0, 0, cvs.width, r.y);
-  cCtx.fillRect(0, r.y + r.h, cvs.width, cvs.height - r.y - r.h);
-  cCtx.fillRect(0, r.y, r.x, r.h);
-  cCtx.fillRect(r.x + r.w, r.y, cvs.width - r.x - r.w, r.h);
-  // Border
-  cCtx.strokeStyle = '#818cf8';
-  cCtx.lineWidth = 2;
-  cCtx.strokeRect(r.x, r.y, r.w, r.h);
-  // 8 handles
-  var hs = cHandleSize / 2;
-  cCtx.fillStyle = '#818cf8';
-  var pts = [
-    [r.x, r.y], [r.x + r.w/2, r.y], [r.x + r.w, r.y],
-    [r.x, r.y + r.h/2], [r.x + r.w, r.y + r.h/2],
-    [r.x, r.y + r.h], [r.x + r.w/2, r.y + r.h], [r.x + r.w, r.y + r.h]
-  ];
-  for (var i = 0; i < pts.length; i++) {
-    cCtx.fillRect(pts[i][0] - hs, pts[i][1] - hs, cHandleSize, cHandleSize);
-    cCtx.strokeStyle = '#fff';
-    cCtx.lineWidth = 1;
-    cCtx.strokeRect(pts[i][0] - hs, pts[i][1] - hs, cHandleSize, cHandleSize);
-    cCtx.strokeStyle = '#818cf8';
-    cCtx.lineWidth = 2;
-  }
-}
-
-function cropPt(e) {
-  var r = cCvs.getBoundingClientRect();
-  var t = e.touches ? e.touches[0] : e;
-  return { x: t.clientX - r.left, y: t.clientY - r.top };
-}
-
-function getCropHandle(p) {
-  var r = cRect, hs = cHandleSize;
-  var dr = function(px, py) { return Math.abs(p.x - px) <= hs && Math.abs(p.y - py) <= hs; };
-  if (dr(r.x, r.y)) return 'tl';
-  if (dr(r.x + r.w, r.y)) return 'tr';
-  if (dr(r.x, r.y + r.h)) return 'bl';
-  if (dr(r.x + r.w, r.y + r.h)) return 'br';
-  if (dr(r.x + r.w/2, r.y)) return 't';
-  if (dr(r.x + r.w/2, r.y + r.h)) return 'b';
-  if (dr(r.x, r.y + r.h/2)) return 'l';
-  if (dr(r.x + r.w, r.y + r.h/2)) return 'r';
-  // Inside rect?
-  if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return 'move';
-  return null;
-}
-
-function onCropDown(p) {
-  var d = getCropHandle(p);
-  if (!d) return;
-  cDrag = { mode: d, sx: p.x, sy: p.y, rx: cRect.x, ry: cRect.y, rw: cRect.w, rh: cRect.h };
-}
-
-function onCropMove(p) {
-  if (!cDrag) return;
-  var dx = p.x - cDrag.sx, dy = p.y - cDrag.sy;
-  var minS = 30, cw = cCvs.width, ch = cCvs.height;
-  var r = { x: cDrag.rx, y: cDrag.ry, w: cDrag.rw, h: cDrag.rh };
-  var d = cDrag.mode;
-  
-  if (d == 'move') {
-    r.x = Math.max(0, Math.min(cw - r.w, r.x + dx));
-    r.y = Math.max(0, Math.min(ch - r.h, r.y + dy));
-  } else {
-    if (d.indexOf('l') >= 0) { var mx = Math.min(r.x + dx, r.x + r.w - minS); r.w += r.x - mx; r.x = mx; }
-    if (d.indexOf('r') >= 0) { r.w = Math.max(minS, r.w + dx); }
-    if (d.indexOf('t') >= 0) { var my = Math.min(r.y + dy, r.y + r.h - minS); r.h += r.y - my; r.y = my; }
-    if (d.indexOf('b') >= 0) { r.h = Math.max(minS, r.h + dy); }
-    // Bounds
-    r.x = Math.max(0, Math.min(cw - r.w, r.x));
-    r.y = Math.max(0, Math.min(ch - r.h, r.y));
-    r.w = Math.min(cw - r.x, r.w);
-    r.h = Math.min(ch - r.y, r.h);
-  }
-  cRect = r;
-  redrawCrop();
-}
-
-function onCropUp() { cDrag = null; }
-
-function resetCrop() {
-  if (!cCvs) return;
-  cRect.w = Math.round(cCvs.width * 0.6);
-  cRect.h = Math.round(cCvs.height * 0.35);
-  cRect.x = Math.round((cCvs.width - cRect.w) / 2);
-  cRect.y = Math.round((cCvs.height - cRect.h) / 2);
-  redrawCrop();
-}
-
-function cancelCrop() { document.getElementById('cropOverlay').classList.remove('show'); }
-
-function confirmCrop() {
-  if (!cImg || !cRect) return;
-  var r = { x: cRect.x / cScale, y: cRect.y / cScale, w: cRect.w / cScale, h: cRect.h / cScale };
-  r.x = Math.round(r.x); r.y = Math.round(r.y);
-  r.w = Math.round(r.w); r.h = Math.round(r.h);
-  if (r.w < 20 || r.h < 20) { showToast('选框太小，请调大'); return; }
-  var tmp = document.createElement('canvas');
-  tmp.width = r.w; tmp.height = r.h;
-  tmp.getContext('2d').drawImage(cImg, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
-  capturedImage = tmp.toDataURL('image/png');
-  document.getElementById('cropOverlay').classList.remove('show');
-  document.getElementById('cameraPreview').innerHTML = '<img src="' + capturedImage + '" style="width:100%">';
-  document.getElementById('btnOcr').textContent = 'AI识别';
-  showToast('已裁剪(PNG无损)，点击AI识别');
-}
-
-function handleOcrClick() {
-  var b = document.getElementById('btnOcr');
-  if (b.textContent.indexOf('框选') >= 0) { startCrop(); }
-  else { processImage(); }
 }
 function retakePhoto() {
   capturedImage = null;
@@ -1612,9 +1421,9 @@ function onFileSelected(event) {
   const reader = new FileReader();
   reader.onload = function(e) {
     capturedImage = e.target.result;
-    const preview = document.getElementById('cameraPreview');
-    preview.innerHTML = `<img src="${capturedImage}" alt="已选择图片">`;
-    document.getElementById('btnOcr').textContent = '✂️ 框选识别';
+    var preview = document.getElementById('cameraPreview');
+    preview.innerHTML = '<img src="' + e.target.result + '" alt="已选择图片" style="width:100%">';
+    document.getElementById('btnOcr').textContent = 'AI识别';
     document.getElementById('btnOcr').style.display = '';
     document.getElementById('btnRetake').style.display = '';
   };
@@ -2101,4 +1910,76 @@ function exportData() {
     return;
   }
   const data = JSON.stringify(allErrors, null, 2);
-  const blob = new Blob([data], { type: 
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `错题数据_${new Date().toLocaleDateString('zh-CN')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📤 数据已导出');
+}
+
+// ============================================================
+// 处理中弹窗
+// ============================================================
+function showProcessing(title, desc) {
+  document.getElementById('procTitle').textContent = title;
+  document.getElementById('procDesc').textContent = desc;
+  document.getElementById('processingOverlay').classList.add('show');
+}
+
+function updateProcessing(title, desc) {
+  document.getElementById('procTitle').textContent = title;
+  document.getElementById('procDesc').textContent = desc;
+}
+
+function hideProcessing() {
+  document.getElementById('processingOverlay').classList.remove('show');
+}
+
+// ============================================================
+// 工具函数
+// ============================================================
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function loadScript(src) {
+  // 支持传入单个 URL 或 URL 数组（备用加载）
+  const urls = Array.isArray(src) ? src : [src];
+  function tryLoad(i) {
+    if (i >= urls.length) return Promise.reject(new Error('所有 CDN 均加载失败'));
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = resolve;
+      s.onerror = () => {
+        console.warn('CDN 加载失败，尝试备用: ' + urls[i]);
+        reject();
+      };
+      document.head.appendChild(s);
+    }).catch(() => tryLoad(i + 1));
+  }
+  return tryLoad(0);
+}
+
+// 关闭弹窗（点击背景）
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('show');
+    const dialog = document.getElementById('saveDialog');
+    if (dialog && e.target === dialog) closeSaveDialog();
+  }
+});
+</script>
+</body>
+</html>
