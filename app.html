@@ -1021,14 +1021,25 @@ html, body {
             <div class="pl-text">点击下方按钮拍照或选择图片</div>
           </div>
         </div>
-        <div class="camera-controls" id="cameraControls">
-          <button class="cam-btn primary" onclick="captureAndOcr()" style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center"><span style="font-size:1.5rem">🤖</span> AI识别题目</button>
-          <div style="display:flex;gap:8px;width:100%">
-            <button class="cam-btn outline" id="btnSwitchCam" style="display:none;flex:1" onclick="switchCamera()">🔄 切换</button>
-            <button class="cam-btn secondary" onclick="uploadImage()" style="flex:1">🖼️ 选择图片</button>
-            <button class="cam-btn outline" onclick="showManualEntry()" style="flex:1">✏️ 手动</button>
-          </div>
-          <button class="cam-btn outline" id="btnRetake" style="display:none;width:100%" onclick="retakePhoto()">🔄 重新拍照</button>
+        <div class="camera-controls">
+          <button class="cam-btn primary" id="btnCamera" onclick="startCamera()">
+            <span class="cb-icon">📸</span> 拍照
+          </button>
+          <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()">
+            <span class="cb-icon">🔄</span> 切换
+          </button>
+          <button class="cam-btn secondary" onclick="uploadImage()">
+            <span class="cb-icon">🖼️</span> 选择图片
+          </button>
+          <button class="cam-btn outline" id="btnManual" onclick="showManualEntry()">
+            <span class="cb-icon">✏️</span> 手动输入
+          </button>
+          <button class="cam-btn primary" id="btnOcr" style="display:none" onclick="processImage()">
+            <span class="cb-icon">🤖</span> AI识别
+          </button>
+          <button class="cam-btn outline" id="btnRetake" style="display:none" onclick="retakePhoto()">
+            <span class="cb-icon">🔄</span> 重新拍照
+          </button>
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
@@ -1224,8 +1235,6 @@ let reviewIndex = 0;
 let reviewAnswerShown = false;
 let selectedSubjects = ['数学', '物理', '化学', '生物', '英语']; // 默认
 let cameraStream = null;
-let currentFacingMode = "environment";
-let videoElem = null;
 let currentFacingMode = 'environment';
 
 // ============================================================
@@ -1303,11 +1312,10 @@ async function startCamera() {
     });
     videoElem.srcObject = cameraStream;
 
-    document.getElementById('btnOcr').textContent = 'AI识别';
+    document.getElementById('btnCamera').textContent = '📸 拍照';
     document.getElementById('btnCamera').onclick = takePhoto;
     document.getElementById('btnSwitchCam').style.display = '';
     document.getElementById('btnOcr').style.display = 'none';
-    document.getElementById('btnSwitchCam').style.display = 'none';
     document.getElementById('btnRetake').style.display = 'none';
   } catch (err) {
     // 如果后置摄像头失败，自动尝试前置
@@ -1318,7 +1326,7 @@ async function startCamera() {
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
         videoElem.srcObject = cameraStream;
-        document.getElementById('btnOcr').textContent = 'AI识别';
+        document.getElementById('btnCamera').textContent = '📸 拍照';
         document.getElementById('btnCamera').onclick = takePhoto;
         document.getElementById('btnSwitchCam').style.display = '';
         return;
@@ -1357,11 +1365,10 @@ function takePhoto() {
   const preview = document.getElementById('cameraPreview');
   preview.innerHTML = `<img src="${capturedImage}" alt="拍照结果">`;
 
-  document.getElementById('btnOcr').textContent = 'AI识别';
+  document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnSwitchCam').style.display = 'none';
-  document.getElementById('btnOcr').textContent = 'AI识别';
-    document.getElementById('btnOcr').style.display = '';
+  document.getElementById('btnOcr').style.display = '';
   document.getElementById('btnRetake').style.display = '';
 }
 
@@ -1369,17 +1376,13 @@ function retakePhoto() {
   capturedImage = null;
   document.getElementById('cameraPreview').innerHTML = `<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">点击下方按钮拍照或选择图片</div></div>`;
   document.getElementById('btnOcr').style.display = 'none';
+  document.getElementById('btnRetake').style.display = 'none';
   document.getElementById('btnSwitchCam').style.display = 'none';
-    document.getElementById('btnRetake').style.display = 'none';
-  document.getElementById('btnSwitchCam').style.display = 'none';
-  document.getElementById('btnOcr').textContent = 'AI识别';
-  document.getElementById('btnOcr').onclick = captureAndOcr;
+  document.getElementById('btnCamera').textContent = '📸 拍照';
+  document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('manualEntry').style.display = 'none';
 }
 
-function stopCamera() { if (cameraStream) { cameraStream.getTracks().forEach(function(t) { t.stop(); }); cameraStream = null; } videoElem = null; }
-function switchCamera() { currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; stopCamera(); startCamera(); }
-function captureAndOcr() { var v = document.getElementById('video'); if (!v || !v.videoWidth) { showToast('未就绪'); return; } var c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); capturedImage = c.toDataURL('image/jpeg', 0.9); processImage(); }
 function uploadImage() {
   document.getElementById('fileInput').click();
 }
@@ -1393,7 +1396,6 @@ function onFileSelected(event) {
     capturedImage = e.target.result;
     const preview = document.getElementById('cameraPreview');
     preview.innerHTML = `<img src="${capturedImage}" alt="已选择图片">`;
-    document.getElementById('btnOcr').textContent = 'AI识别';
     document.getElementById('btnOcr').style.display = '';
     document.getElementById('btnRetake').style.display = '';
   };
@@ -1404,42 +1406,10 @@ function onFileSelected(event) {
 // ============================================================
 // OCR 识别
 // ============================================================
-async var BAIDU_API_KEY = 'wOK17Uw63AFTQgMAQLTWV1Zb';
-var BAIDU_SECRET_KEY = 'zVF5LUK4Sd9DGJ3P1qj5NbA3juymkA9C';
-var baiduToken = null;
-var baiduTokenExpires = 0;
-
-function getBaiduToken() {
-  return new Promise(function(resolve,reject) {
-    if (baiduToken && Date.now() < baiduTokenExpires) { resolve(baiduToken); return; }
-    var x = new XMLHttpRequest();
-    x.open('POST','https://aip.baidubce.com/oauth/2.0/token');
-    x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-    x.onload = function() { try { var d = JSON.parse(x.responseText); if (d.access_token) { baiduToken = d.access_token; baiduTokenExpires = Date.now() + (d.expires_in-60)*1000; resolve(baiduToken); } else { reject(new Error(d.error_description||'fail')); } } catch(e) { reject(e); } };
-    x.onerror = function() { reject(new Error('Network error')); };
-    x.send('grant_type=client_credentials&client_id='+encodeURIComponent(BAIDU_API_KEY)+'&client_secret='+encodeURIComponent(BAIDU_SECRET_KEY));
-  });
-}
-
-function baiduOcr(img) {
-  return new Promise(function(resolve,reject) {
-    getBaiduToken().then(function(token) {
-      var b = img.replace(/^data:image\/\\w+;base64,/,'');
-      var x = new XMLHttpRequest();
-      x.open('POST','https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token='+token);
-      x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-      x.onload = function() { try { var d = JSON.parse(x.responseText); if (d.words_result) { resolve(d.words_result.map(function(w){return w.words;}).join('\\n')); } else { reject(new Error(d.error_msg||'OCR failed')); } } catch(e) { reject(e); } };
-      x.onerror = function() { reject(new Error('Network error')); };
-      x.send('image='+encodeURIComponent(b));
-    }).catch(function(e) { reject(e); });
-  });
-}
-
-function processImage() {
+async function processImage() {
   if (!capturedImage) { showToast('请先拍照或选择图片'); return; }
 
-  try { showProcessing('云端OCR...', '百度识别中'); var t = await baiduOcr(capturedImage); hideProcessing(); if (t && t.trim().length>3) { showSaveDialog(t, guessSubject(t)); return; } } catch(e) {}
-  showProcessing('本地OCR...', '百度不可用，切换Tesseract引擎');
+  showProcessing('准备AI识别...', '首次使用需要下载语言包（约3MB），请稍候');
 
   try {
     // 尝试加载 Tesseract（多 CDN 备用）
