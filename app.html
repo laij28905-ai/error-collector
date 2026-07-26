@@ -1022,24 +1022,13 @@ html, body {
           </div>
         </div>
         <div class="camera-controls">
-          <button style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center" onclick="captureAndOcr()" style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center"><span style="font-size:1.5rem">🤖</span> AI识别题目</button>
-            <span class="cb-icon">📸</span> 拍照
-          </button>
-          <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()">
-            <span class="cb-icon">🔄</span> 切换
-          </button>
-          </div><div style="display:flex;gap:8px;width:100%"><button class="cam-btn outline" id="btnSwitchCam" style="display:none;flex:1" onclick="switchCamera()">🔄 切换</button><button class="cam-btn secondary" onclick="uploadImage()" style="flex:1">
-            <span class="cb-icon">🖼️</span> 选择图片
-          </button>
-          <button class="cam-btn outline" onclick="showManualEntry()" style="flex:1">
-            <span class="cb-icon">✏️</span> 手动输入
-          </button>
-          <button style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center"" style="display:none">
-            <span class="cb-icon">🤖</span> AI识别
-          </button>
-          <button class="cam-btn outline" id="btnRetake" style="display:none;width:100%" onclick="retakePhoto()">
-            <span class="cb-icon">🔄</span> 重新拍照
-          </button>
+          <button class="cam-btn primary" onclick="captureAndOcr()" style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center"><span style="font-size:1.5rem">🤖</span> AI识别题目</button>
+          <div style="display:flex;gap:8px;width:100%">
+            <button class="cam-btn outline" id="btnSwitchCam" style="display:none;flex:1" onclick="switchCamera()">🔄 切换</button>
+            <button class="cam-btn secondary" onclick="uploadImage()" style="flex:1">🖼️ 选择图片</button>
+            <button class="cam-btn outline" onclick="showManualEntry()" style="flex:1">✏️ 手动</button>
+          </div>
+          <button class="cam-btn outline" id="btnRetake" style="display:none;width:100%" onclick="retakePhoto()">🔄 重新拍照</button>
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
@@ -1303,7 +1292,8 @@ function goBack() {
 // ============================================================
 let videoElem = null;
 
-async function stopCamera() {
+async 
+function stopCamera() {
   if (cameraStream) { cameraStream.getTracks().forEach(function(t){t.stop()}); cameraStream = null; }
   videoElem = null;
 }
@@ -1418,8 +1408,6 @@ function onFileSelected(event) {
     capturedImage = e.target.result;
     const preview = document.getElementById('cameraPreview');
     preview.innerHTML = `<img src="${capturedImage}" alt="已选择图片">`;
-    document.getElementById('btnOcr').textContent = 'AI识别题目';
-    document.getElementById('btnOcr').onclick = captureAndOcr;
     document.getElementById('btnOcr').style.display = '';
     document.getElementById('btnRetake').style.display = '';
   };
