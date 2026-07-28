@@ -10,7 +10,29 @@
 <meta name="description" content="轻量化AI高中错题个性化学习助手 - 拍照归集、智能分类、变式训练、学情分析">
 <title>错题助手</title>
 
-
+<!-- Dexie.js: 顺序加载 (多CDN备用) -->
+<script>
+// Dexie 顺序加载，尝试多个 CDN
+(function() {
+  var cdnList = [
+    'https://cdn.jsdelivr.net/npm/dexie@3.2.6/dist/dexie.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.6/dexie.min.js',
+    'https://unpkg.com/dexie@3.2.6/dist/dexie.js'
+  ];
+  var i = 0;
+  function tryLoad() {
+    if (i >= cdnList.length) { console.warn('Dexie 所有 CDN 均加载失败'); return; }
+    var s = document.createElement('script');
+    s.src = cdnList[i];
+    s.onload = function() {
+      document.dispatchEvent(new CustomEvent('dexie-loaded'));
+    };
+    s.onerror = function() { i++; tryLoad(); };
+    document.head.appendChild(s);
+  }
+  tryLoad();
+})();
+</script>
 
 <style>
 /* ========== 全局样式 ========== */
@@ -1000,13 +1022,24 @@ html, body {
           </div>
         </div>
         <div class="camera-controls">
-          <button class="cam-btn primary" onclick="captureAndOcr()" style="display:flex;width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;border:none;font-family:inherit;font-size:1.15rem;font-weight:700;gap:10px;cursor:pointer;justify-content:center;align-items:center"><span style="font-size:1.5rem">🤖</span> AI识别题目</button>
-          <div style="display:flex;gap:8px;width:100%">
-            <button class="cam-btn outline" id="btnSwitchCam" style="display:none;flex:1" onclick="switchCamera()">🔄 切换</button>
-            <button class="cam-btn secondary" onclick="uploadImage()" style="flex:1">🖼️ 选择图片</button>
-            <button class="cam-btn outline" onclick="showManualEntry()" style="flex:1">✏️ 手动</button>
-          </div>
-          <button class="cam-btn outline" id="btnRetake" style="display:none;width:100%" onclick="retakePhoto()">🔄 重新拍照</button>
+          <button class="cam-btn primary" id="btnCamera" onclick="startCamera()">
+            <span class="cb-icon">📸</span> 拍照
+          </button>
+          <button class="cam-btn outline" id="btnSwitchCam" style="display:none" onclick="switchCamera()">
+            <span class="cb-icon">🔄</span> 切换
+          </button>
+          <button class="cam-btn secondary" onclick="uploadImage()">
+            <span class="cb-icon">🖼️</span> 选择图片
+          </button>
+          <button class="cam-btn outline" id="btnManual" onclick="showManualEntry()">
+            <span class="cb-icon">✏️</span> 手动输入
+          </button>
+          <button class="cam-btn primary" id="btnOcr" style="display:none" onclick="processImage()">
+            <span class="cb-icon">🤖</span> AI识别
+          </button>
+          <button class="cam-btn outline" id="btnRetake" style="display:none" onclick="retakePhoto()">
+            <span class="cb-icon">🔄</span> 重新拍照
+          </button>
         </div>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelected(event)">
       </div>
@@ -1156,33 +1189,6 @@ html, body {
 // ============================================================
 var db = null;
 function initDB() {
-  db = {
-    errors: {
-      add: function(item) {
-        var items = JSON.parse(localStorage.getItem("ec_err")||"[]");
-        item.id = items.length>0?Math.max.apply(null,items.map(function(i){return i.id;}))+1:1;
-        items.unshift(item);
-        localStorage.setItem("ec_err", JSON.stringify(items));
-        return Promise.resolve(item.id);
-      },
-      toArray: function() { return Promise.resolve(JSON.parse(localStorage.getItem("ec_err")||"[]")); },
-      delete: function(id) {
-        var items = JSON.parse(localStorage.getItem("ec_err")||"[]").filter(function(i){return i.id!==id;});
-        localStorage.setItem("ec_err", JSON.stringify(items));
-        return Promise.resolve();
-      },
-      update: function(id, changes) {
-        var items = JSON.parse(localStorage.getItem("ec_err")||"[]");
-        for(var i=0;i<items.length;i++){if(items[i].id===id){for(var k in changes){items[i][k]=changes[k];}break;}}
-        localStorage.setItem("ec_err", JSON.stringify(items));
-        return Promise.resolve();
-      },
-      clear: function() { localStorage.removeItem("ec_err"); return Promise.resolve(); },
-      orderBy: function() { return this; },
-      reverse: function() { return this; }
-    }
-  };
-} {
   try {
     db = new Dexie('ErrorCollectDB');
     db.version(1).stores({
@@ -1229,14 +1235,22 @@ let reviewIndex = 0;
 let reviewAnswerShown = false;
 let selectedSubjects = ['数学', '物理', '化学', '生物', '英语']; // 默认
 let cameraStream = null;
-let currentFacingMode = "environment";
-let videoElem = null;
 let currentFacingMode = 'environment';
 
 // ============================================================
 // 初始化
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  // 等待 Dexie 加载完成
+  await new Promise(function(resolve) {
+    var waited = 0;
+    function check() {
+      if (typeof Dexie !== 'undefined') { resolve(); }
+      else if (waited > 10000) { showToast('数据存储加载超时，部分功能可能受限'); resolve(); }
+      else { waited += 100; setTimeout(check, 100); }
+    }
+    setTimeout(check, 500);
+  });
   initDB();
   renderSubjectTags();
   await loadErrors();
@@ -1287,13 +1301,7 @@ function goBack() {
 // ============================================================
 let videoElem = null;
 
-async 
-function stopCamera() { if (cameraStream) { cameraStream.getTracks().forEach(function(t){t.stop()}); cameraStream = null; } videoElem = null; }
-function switchCamera() { currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; stopCamera(); startCamera(); }
-function captureAndOcr() { var v=document.getElementById("video"); if(!v||!v.videoWidth){showToast("摄像头未就绪");return;} var c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext("2d").drawImage(v,0,0); capturedImage=c.toDataURL("image/jpeg",0.9); processImage(); }
-function uploadImage() { document.getElementById("fileInput").click(); }
-
-function startCamera() {
+async function startCamera() {
   const preview = document.getElementById('cameraPreview');
   preview.innerHTML = '<video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
   videoElem = document.getElementById('video');
@@ -1360,9 +1368,7 @@ function takePhoto() {
   document.getElementById('btnCamera').textContent = '📸 拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnSwitchCam').style.display = 'none';
-  document.getElementById('btnOcr').textContent = 'AI识别题目';
-    document.getElementById('btnOcr').onclick = captureAndOcr;
-    document.getElementById('btnOcr').style.display = '';
+  document.getElementById('btnOcr').style.display = '';
   document.getElementById('btnRetake').style.display = '';
 }
 
