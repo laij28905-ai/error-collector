@@ -10,29 +10,7 @@
 <meta name="description" content="轻量化AI高中错题个性化学习助手 - 拍照归集、智能分类、变式训练、学情分析">
 <title>错题助手</title>
 
-<!-- Dexie.js: 顺序加载 (多CDN备用) -->
-<script>
-// Dexie 顺序加载，尝试多个 CDN
-(function() {
-  var cdnList = [
-    'https://cdn.jsdelivr.net/npm/dexie@3.2.6/dist/dexie.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.6/dexie.min.js',
-    'https://unpkg.com/dexie@3.2.6/dist/dexie.js'
-  ];
-  var i = 0;
-  function tryLoad() {
-    if (i >= cdnList.length) { console.warn('Dexie 所有 CDN 均加载失败'); return; }
-    var s = document.createElement('script');
-    s.src = cdnList[i];
-    s.onload = function() {
-      document.dispatchEvent(new CustomEvent('dexie-loaded'));
-    };
-    s.onerror = function() { i++; tryLoad(); };
-    document.head.appendChild(s);
-  }
-  tryLoad();
-})();
-</script>
+
 
 <style>
 /* ========== 全局样式 ========== */
@@ -1178,6 +1156,33 @@ html, body {
 // ============================================================
 var db = null;
 function initDB() {
+  db = {
+    errors: {
+      add: function(item) {
+        var items = JSON.parse(localStorage.getItem("ec_err")||"[]");
+        item.id = items.length>0?Math.max.apply(null,items.map(function(i){return i.id;}))+1:1;
+        items.unshift(item);
+        localStorage.setItem("ec_err", JSON.stringify(items));
+        return Promise.resolve(item.id);
+      },
+      toArray: function() { return Promise.resolve(JSON.parse(localStorage.getItem("ec_err")||"[]")); },
+      delete: function(id) {
+        var items = JSON.parse(localStorage.getItem("ec_err")||"[]").filter(function(i){return i.id!==id;});
+        localStorage.setItem("ec_err", JSON.stringify(items));
+        return Promise.resolve();
+      },
+      update: function(id, changes) {
+        var items = JSON.parse(localStorage.getItem("ec_err")||"[]");
+        for(var i=0;i<items.length;i++){if(items[i].id===id){for(var k in changes){items[i][k]=changes[k];}break;}}
+        localStorage.setItem("ec_err", JSON.stringify(items));
+        return Promise.resolve();
+      },
+      clear: function() { localStorage.removeItem("ec_err"); return Promise.resolve(); },
+      orderBy: function() { return this; },
+      reverse: function() { return this; }
+    }
+  };
+} {
   try {
     db = new Dexie('ErrorCollectDB');
     db.version(1).stores({
@@ -1232,16 +1237,6 @@ let currentFacingMode = 'environment';
 // 初始化
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // 等待 Dexie 加载完成
-  await new Promise(function(resolve) {
-    var waited = 0;
-    function check() {
-      if (typeof Dexie !== 'undefined') { resolve(); }
-      else if (waited > 10000) { showToast('数据存储加载超时，部分功能可能受限'); resolve(); }
-      else { waited += 100; setTimeout(check, 100); }
-    }
-    setTimeout(check, 500);
-  });
   initDB();
   renderSubjectTags();
   await loadErrors();
