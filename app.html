@@ -1293,23 +1293,10 @@ function goBack() {
 let videoElem = null;
 
 async 
-function stopCamera() {
-  if (cameraStream) { cameraStream.getTracks().forEach(function(t){t.stop()}); cameraStream = null; }
-  videoElem = null;
-}
-function switchCamera() {
-  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-  stopCamera(); startCamera();
-}
-function captureAndOcr() {
-  var v = document.getElementById('video');
-  if (!v || !v.videoWidth) { showToast('请先打开摄像头'); return; }
-  var can = document.createElement('canvas');
-  can.width = v.videoWidth; can.height = v.videoHeight;
-  can.getContext('2d').drawImage(v, 0, 0);
-  capturedImage = can.toDataURL('image/jpeg', 0.9);
-  processImage();
-}
+function stopCamera() { if (cameraStream) { cameraStream.getTracks().forEach(function(t){t.stop()}); cameraStream = null; } videoElem = null; }
+function switchCamera() { currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; stopCamera(); startCamera(); }
+function captureAndOcr() { var v=document.getElementById("video"); if(!v||!v.videoWidth){showToast("摄像头未就绪");return;} var c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext("2d").drawImage(v,0,0); capturedImage=c.toDataURL("image/jpeg",0.9); processImage(); }
+function uploadImage() { document.getElementById("fileInput").click(); }
 
 function startCamera() {
   const preview = document.getElementById('cameraPreview');
