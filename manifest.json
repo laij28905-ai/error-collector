@@ -1,27 +1,27 @@
 {
-  "name": "AI错题助手 - 轻量化AI高中错题个性化学习助手",
-  "short_name": "错题助手",
-  "description": "拍照归集错题、AI智能分类、变式训练、学情分析",
+  "name": "错题复盘助手 - 高中生离线错题采集与AI复盘系统",
+  "short_name": "错题复盘",
+  "description": "面向高中学生的离线错题记录、联网AI分析、举一反三训练工具。",
   "start_url": "app.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1328",
-  "theme_color": "#0f1328",
+  "background_color": "#0f172a",
+  "theme_color": "#101827",
+  "categories": ["education", "productivity"],
+  "lang": "zh-CN",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230f1328'/%3E%3Ctext x='96' y='128' font-size='96' text-anchor='middle' fill='%23818cf8'%3E📚%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23101827'/%3E%3Ctext x='96' y='123' font-size='88' text-anchor='middle'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='64' fill='%230f1328'/%3E%3Ctext x='256' y='340' font-size='220' text-anchor='middle' fill='%23818cf8'%3E📚%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23101827'/%3E%3Ctext x='256' y='326' font-size='230' text-anchor='middle'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ],
-  "categories": ["education", "productivity"],
-  "lang": "zh-CN",
-  "scope": "./"
+  ]
 }
