@@ -1,0 +1,46 @@
+name: HTML Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-html:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check app.html exists
+        run: test -f app.html
+
+      - name: Basic HTML sanity check
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          html_path = Path('app.html')
+          content = html_path.read_text(encoding='utf-8')
+
+          required = [
+              '<!DOCTYPE html>',
+              '<html lang="zh-CN">',
+              '<meta charset="UTF-8">',
+              '<title>',
+              '</html>',
+          ]
+
+          missing = [item for item in required if item not in content]
+          if missing:
+              raise SystemExit('Missing required HTML markers: ' + ', '.join(missing))
+
+          class Parser(HTMLParser):
+              pass
+
+          Parser().feed(content)
+          print('app.html basic check passed')
+          PY
