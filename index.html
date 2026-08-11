@@ -3,394 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>轻量化AI高中错题个性化学习助手</title>
+<meta name="theme-color" content="#101827">
+<link rel="manifest" href="manifest.json">
+<title>错题复盘助手</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700;800&display=swap');
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #0a0e27;
-    color: #fff;
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  /* 背景粒子 */
-  #particles-canvas {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* 背景渐变 */
-  .bg-glow {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(120px);
-    opacity: 0.15;
-    pointer-events: none;
-    z-index: 0;
-  }
-  .bg-glow-1 {
-    width: 600px; height: 600px;
-    background: #6366f1;
-    top: -200px; right: -150px;
-    animation: glowFloat 20s ease-in-out infinite;
-  }
-  .bg-glow-2 {
-    width: 500px; height: 500px;
-    background: #06b6d4;
-    bottom: -200px; left: -150px;
-    animation: glowFloat 25s ease-in-out infinite reverse;
-  }
-  .bg-glow-3 {
-    width: 400px; height: 400px;
-    background: #8b5cf6;
-    bottom: 20%; right: 10%;
-    animation: glowFloat 18s ease-in-out infinite 5s;
-  }
-
-  @keyframes glowFloat {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 30px) scale(0.9); }
-  }
-
-  /* 主容器 */
-  .container {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    padding: 2rem;
-    text-align: center;
-  }
-
-  /* 顶部标签 */
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 20px;
-    border-radius: 100px;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.25);
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #a5b4fc;
-    letter-spacing: 1px;
-    margin-bottom: 2rem;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 0.2s forwards;
-  }
-  .badge .dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #22d3ee;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* 主标题 */
-  .main-title {
-    font-size: clamp(2.2rem, 5vw, 3.8rem);
-    font-weight: 800;
-    line-height: 1.2;
-    margin-bottom: 1rem;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 0.4s forwards;
-  }
-  .main-title .highlight {
-    background: linear-gradient(135deg, #818cf8, #22d3ee);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* 副标题 */
-  .subtitle {
-    font-size: clamp(0.95rem, 1.5vw, 1.15rem);
-    font-weight: 300;
-    color: rgba(255,255,255,0.5);
-    max-width: 640px;
-    line-height: 1.7;
-    margin-bottom: 3rem;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 0.6s forwards;
-  }
-
-  /* 特性列表 */
-  .features {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 3rem;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 0.8s forwards;
-  }
-  .feature-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 18px;
-    border-radius: 100px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    font-size: 0.85rem;
-    font-weight: 400;
-    color: rgba(255,255,255,0.6);
-  }
-  .feature-item .icon {
-    font-size: 1rem;
-  }
-
-  /* 按钮 */
-  .btn-start {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 48px;
-    border-radius: 60px;
-    border: none;
-    background: linear-gradient(135deg, #6366f1, #06b6d4);
-    color: #fff;
-    font-family: inherit;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 1.0s forwards;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-start::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(135deg, #818cf8, #22d3ee);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-  .btn-start:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
-  }
-  .btn-start:hover::before {
-    opacity: 1;
-  }
-  .btn-start span {
-    position: relative;
-    z-index: 1;
-  }
-  .btn-start .arrow {
-    position: relative;
-    z-index: 1;
-    transition: transform 0.3s ease;
-  }
-  .btn-start:hover .arrow {
-    transform: translateX(4px);
-  }
-
-  /* 底部信息 */
-  .footer {
-    position: fixed;
-    bottom: 2rem;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.2);
-    z-index: 1;
-    opacity: 0;
-    animation: fadeSlideUp 0.8s ease 1.4s forwards;
-  }
-  .footer .team {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .footer .sep {
-    margin: 0 8px;
-    opacity: 0.3;
-  }
-
-  /* 动画 */
-  @keyframes fadeSlideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* 响应式 */
-  @media (max-width: 640px) {
-    .features { gap: 0.6rem; }
-    .feature-item { padding: 6px 14px; font-size: 0.78rem; }
-    .btn-start { padding: 14px 36px; font-size: 1rem; }
-  }
+:root{--bg:#101827;--panel:#172033;--panel2:#202b43;--text:#f6f7fb;--muted:#9aa4b8;--line:#2d3954;--blue:#3b82f6;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--cyan:#06b6d4}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}.app{max-width:520px;min-height:100vh;margin:0 auto;background:#0f172a}.top{position:sticky;top:0;z-index:5;padding:14px 16px;background:rgba(15,23,42,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand h1{font-size:20px;margin:0}.net{font-size:12px;padding:5px 9px;border-radius:999px;background:#26324c;color:var(--muted)}.net.online{background:rgba(16,185,129,.16);color:#86efac}.hero{padding:18px 16px 8px}.hero h2{font-size:24px;line-height:1.25;margin:0 0 8px}.hero p{margin:0;color:var(--muted);line-height:1.7}.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px}.tab{padding:10px 4px;border-radius:10px;background:var(--panel);color:var(--muted)}.tab.active{background:var(--blue);color:white}.page{display:none;padding:10px 16px 92px}.page.active{display:block}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:var(--panel2);border-radius:10px;padding:12px;text-align:center}.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{padding:12px 14px;border-radius:10px;background:var(--panel2);color:var(--text);border:1px solid var(--line)}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.green{background:var(--green);border-color:var(--green);color:#052e24}.btn.red{background:var(--red);border-color:var(--red);color:#fff}.btn.full{width:100%}.field{margin:10px 0}.field label{display:block;margin-bottom:6px;color:var(--muted);font-size:13px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:#0b1220;color:var(--text);padding:11px 12px}.field textarea{min-height:110px;resize:vertical}.preview{min-height:180px;border:1px dashed var(--line);border-radius:12px;background:#0b1220;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);text-align:center}.preview img{width:100%;height:auto;display:block}.item{padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);margin-bottom:10px}.item h3{margin:0 0 6px;font-size:16px}.meta{font-size:12px;color:var(--muted)}.pill{display:inline-block;margin:6px 6px 0 0;padding:4px 8px;border-radius:999px;background:#0b1220;color:#cbd5e1;font-size:12px}.analysis{white-space:pre-wrap;line-height:1.7;color:#dbeafe}.empty{padding:26px;text-align:center;color:var(--muted)}.bottom{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:520px;padding:10px 16px;background:rgba(15,23,42,.95);border-top:1px solid var(--line)}.hint{font-size:12px;color:var(--muted);line-height:1.6}.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#111827;color:white;border:1px solid var(--line);border-radius:10px;padding:10px 14px;opacity:0;pointer-events:none;transition:.2s;z-index:20}.toast.show{opacity:1}@media(max-width:380px){.tabs{grid-template-columns:repeat(2,1fr)}.actions,.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<div class="toast" id="toast"></div>
+<div class="app">
+  <header class="top"><div class="brand"><h1>错题复盘助手</h1><span class="net" id="netState">检测网络中</span></div></header>
+  <section class="hero"><h2>离线先记录，联网再复盘</h2><p>面向高中学生：无网络时拍照保存错题和文字；有网络时让 AI 分析错因、生成解析和类似题。</p></section>
+  <nav class="tabs">
+    <button class="tab active" data-page="home">首页</button><button class="tab" data-page="capture">录入</button><button class="tab" data-page="book">错题本</button><button class="tab" data-page="review">AI复盘</button>
+  </nav>
 
-  <!-- 背景光晕 -->
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-  <div class="bg-glow bg-glow-3"></div>
+  <main>
+    <section class="page active" id="home">
+      <div class="grid">
+        <div class="stat"><b id="totalCount">0</b><span>错题</span></div><div class="stat"><b id="pendingCount">0</b><span>待分析</span></div><div class="stat"><b id="weakCount">0</b><span>薄弱点</span></div>
+      </div>
+      <div class="card"><h3>项目定位</h3><p class="hint">不是“直接搜答案”，而是把每一道错题沉淀为可复习、可追踪、可举一反三的学习资产。</p></div>
+      <div class="actions"><button class="btn primary" onclick="showPage('capture')">录入错题</button><button class="btn" onclick="showPage('review')">开始复盘</button></div>
+    </section>
 
-  <!-- 粒子画布 -->
-  <canvas id="particles-canvas"></canvas>
+    <section class="page" id="capture">
+      <div class="card">
+        <div class="preview" id="imagePreview">拍照或上传错题图片<br>离线状态也会保存到本机</div>
+        <input id="fileInput" type="file" accept="image/*" capture="environment" hidden>
+        <div class="actions" style="margin-top:12px"><button class="btn primary" onclick="pickImage()">拍照/上传</button><button class="btn" onclick="offlineRecognize()">离线识别</button></div>
+        <p class="hint">说明：网页版离线 OCR 需要模型资源已缓存。未缓存时会保留图片，并让你手动校正题目文字。</p>
+      </div>
+      <div class="card">
+        <div class="field"><label>题目文字</label><textarea id="questionText" placeholder="AI 识别结果或手动输入题目..."></textarea></div>
+        <div class="field"><label>学科</label><select id="subject"><option>数学</option><option>语文</option><option>英语</option><option>物理</option><option>化学</option><option>生物</option><option>历史</option><option>政治</option><option>地理</option></select></div>
+        <div class="field"><label>知识点/错因</label><input id="topic" placeholder="例如：函数单调性、审题不清、公式混淆"></div>
+        <button class="btn green full" onclick="saveMistake()">保存到离线错题本</button>
+      </div>
+    </section>
 
-  <!-- 主要内容 -->
-  <div class="container">
-    <div class="badge">
-      <span class="dot"></span>
-      华中科技大学 · 创客训练营
-    </div>
+    <section class="page" id="book"><div id="mistakeList"></div></section>
 
-    <h1 class="main-title">
-      轻量化<span class="highlight">AI</span>高中<br>
-      错题个性化学习助手
-    </h1>
-
-    <p class="subtitle">
-      拍照归集 · 智能分类 · 变式训练 ·
-      学情分析 —— 轻量极简，为每一位高中生量身定制的AI错题管家
-    </p>
-
-    <div class="features">
-      <div class="feature-item"><span class="icon">📸</span> AI拍照识别</div>
-      <div class="feature-item"><span class="icon">📂</span> 自动归类</div>
-      <div class="feature-item"><span class="icon">✏️</span> 变式训练</div>
-      <div class="feature-item"><span class="icon">📊</span> 学情报表</div>
-      <div class="feature-item"><span class="icon">🌙</span> 离线可用</div>
-    </div>
-
-    <button class="btn-start" onclick="enterApp()">
-      <span>开始使用</span>
-      <span class="arrow">→</span>
-    </button>
-  </div>
-
-  <!-- 底部 -->
-  <div class="footer">
-    <span class="team">Team Future</span>
-    <span class="sep">·</span>
-    <span>姜来 · 王子然 · 王冠杨</span>
-    <span class="sep">·</span>
-    <span>2026</span>
-  </div>
-
-  <script>
-    // 粒子系统
-    const canvas = document.getElementById('particles-canvas');
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    let animationId;
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    class Particle {
-      constructor() {
-        this.reset();
-      }
-      reset() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2 + 0.5;
-        this.speedX = (Math.random() - 0.5) * 0.3;
-        this.speedY = (Math.random() - 0.5) * 0.3;
-        this.opacity = Math.random() * 0.5 + 0.1;
-      }
-      update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
-          this.reset();
-        }
-      }
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(165, 180, 252, ${this.opacity})`;
-        ctx.fill();
-      }
-    }
-
-    function initParticles() {
-      particles = [];
-      const count = Math.min(80, Math.floor(canvas.width * canvas.height / 12000));
-      for (let i = 0; i < count; i++) {
-        particles.push(new Particle());
-      }
-    }
-
-    function drawConnections() {
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 150) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(165, 180, 252, ${0.08 * (1 - dist / 150)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-    }
-
-    function animateParticles() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => { p.update(); p.draw(); });
-      drawConnections();
-      animationId = requestAnimationFrame(animateParticles);
-    }
-
-    initParticles();
-    animateParticles();
-
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-      initParticles();
-    });
-
-    // 进入应用
-    function enterApp() {
-      const btn = document.querySelector('.btn-start');
-      btn.style.transform = 'scale(0.95)';
-      btn.style.opacity = '0.5';
-      setTimeout(() => {
-        window.location.href = 'app.html';
-        btn.style.transform = '';
-        btn.style.opacity = '';
-      }, 300);
-    }
-  </script>
+    <section class="page" id="review">
+      <div class="card"><h3>联网 AI 复盘</h3><p class="hint">选择一道错题后，系统会生成错因分析、解题思路和 3 道类似题。当前版本内置演示分析，也预留了真实 AI 接口位置。</p></div>
+      <div id="reviewList"></div>
+      <div class="card" id="analysisBox" style="display:none"><h3>AI 分析结果</h3><div class="analysis" id="analysisText"></div></div>
+    </section>
+  </main>
+  <div class="bottom"><p class="hint">所有错题先存在本机浏览器。联网后可进行 AI 分析，适合课堂、宿舍、通勤等网络不稳定场景。</p></div>
+</div>
+<script>
+const STORAGE_KEY='offline-ai-error-collector-v1';let imageData='';let mistakes=[];
+function load(){try{mistakes=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{mistakes=[]}render()}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(mistakes))}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===id));if(id==='book'||id==='review')render()}
+document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>showPage(btn.dataset.page)));
+function updateNet(){const el=document.getElementById('netState');el.textContent=navigator.onLine?'在线：可AI复盘':'离线：可记录';el.classList.toggle('online',navigator.onLine)}
+window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
+function pickImage(){document.getElementById('fileInput').click()}
+document.getElementById('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{imageData=reader.result;document.getElementById('imagePreview').innerHTML='<img alt="错题图片" src="'+imageData+'">';toast('图片已保存，可继续识别或手动输入')};reader.readAsDataURL(f);e.target.value=''});
+function offlineRecognize(){const text=document.getElementById('questionText');if(!imageData){toast('请先拍照或上传图片');return}if(text.value.trim()){toast('已保留当前文字，可直接保存');return}text.value='[离线识别待校正] 请在这里补充或修改题目文字。';toast('离线 OCR 资源未接入，已进入手动校正模式')}
+function guessSubject(q){const rules={数学:/函数|方程|几何|导数|概率|数列|三角|向量|不等式|x|y/i,物理:/速度|加速度|电场|磁场|牛顿|动量|电路|压强/i,化学:/离子|反应|溶液|摩尔|氧化|还原|元素|分子/i,生物:/细胞|基因|遗传|光合|生态|DNA|RNA/i,英语:/grammar|read|write|translate|vocabulary|cloze/i,语文:/文言|阅读|作文|修辞|成语|病句/i};for(const k in rules){if(rules[k].test(q))return k}return document.getElementById('subject').value}
+function saveMistake(){const q=document.getElementById('questionText').value.trim();if(!q){toast('请先输入题目文字');return}const item={id:Date.now(),question:q,subject:guessSubject(q),topic:document.getElementById('topic').value.trim()||'待归类',image:imageData,createdAt:new Date().toLocaleString('zh-CN'),analysis:''};mistakes.unshift(item);persist();imageData='';document.getElementById('imagePreview').innerHTML='拍照或上传错题图片<br>离线状态也会保存到本机';document.getElementById('questionText').value='';document.getElementById('topic').value='';toast('已保存到离线错题本');showPage('book')}
+function render(){document.getElementById('totalCount').textContent=mistakes.length;document.getElementById('pendingCount').textContent=mistakes.filter(m=>!m.analysis).length;document.getElementById('weakCount').textContent=new Set(mistakes.map(m=>m.topic)).size;const list=document.getElementById('mistakeList');const review=document.getElementById('reviewList');if(!mistakes.length){list.innerHTML='<div class="empty">还没有错题，先去录入一题吧。</div>';review.innerHTML='<div class="empty">暂无可复盘错题。</div>';return}list.innerHTML=mistakes.map(m=>'<article class="item"><h3>'+esc(m.subject)+' · '+esc(m.topic)+'</h3><p>'+esc(short(m.question,90))+'</p><div class="meta">'+m.createdAt+(m.analysis?' · 已分析':' · 待分析')+'</div><span class="pill" onclick="removeMistake('+m.id+')">删除</span></article>').join('');review.innerHTML=mistakes.map(m=>'<article class="item"><h3>'+esc(m.subject)+' · '+esc(m.topic)+'</h3><p>'+esc(short(m.question,70))+'</p><button class="btn primary full" onclick="analyze('+m.id+')">AI 分析并生成类似题</button></article>').join('')}
+function analyze(id){const m=mistakes.find(x=>x.id===id);if(!m)return;const similar=makeSimilar(m);const result='【错因分析】\n这道题建议重点检查：'+m.topic+'。常见问题包括概念边界不清、条件提取不完整、步骤跳跃。\n\n【解题建议】\n1. 先圈出题干中的已知条件和目标。\n2. 写出对应知识点的核心公式或方法。\n3. 每一步计算后回看单位、范围或逻辑条件。\n\n【举一反三】\n'+similar.map((s,i)=>(i+1)+'. '+s).join('\n')+'\n\n【复习安排】\n今天订正一次，明天做类似题，三天后再回看原题。';m.analysis=result;persist();document.getElementById('analysisText').textContent=result;document.getElementById('analysisBox').style.display='block';render();toast(navigator.onLine?'已生成 AI 复盘':'当前离线，已生成本地演示复盘')}
+function makeSimilar(m){const s=m.subject;if(s==='数学')return ['已知函数 f(x)=x^2-2x，求其单调区间。','解方程 x^2-5x+6=0，并说明解题步骤。','某数列满足 a(n+1)=a(n)+3，求第 10 项。'];if(s==='物理')return ['物体做匀加速直线运动，已知初速度和加速度，求 5 秒后的速度。','分析斜面上物体受力，并判断摩擦力方向。','已知电压和电阻，计算电流并说明依据。'];if(s==='英语')return ['阅读短文并判断作者观点。','选择正确时态完成句子。','根据上下文猜测划线单词含义。'];return ['提取题干关键信息并写出解题思路。','换一个条件后重新求解同类问题。','说明本题最容易出错的一步是什么。']}
+function removeMistake(id){mistakes=mistakes.filter(m=>m.id!==id);persist();render();toast('已删除')}
+function short(s,n){return s.length>n?s.slice(0,n)+'...':s}function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}updateNet();load();
+</script>
 </body>
 </html>
