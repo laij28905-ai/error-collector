@@ -2061,6 +2061,28 @@ function importQuestionBank() {
   document.getElementById('bankInput').click();
 }
 
+function exportQuestionBank() {
+  const bank = getQuestionBank();
+  if (bank.length === 0) {
+    showToast('题库为空');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(bank, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `题库_${new Date().toLocaleDateString('zh-CN')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`题库已导出 ${bank.length} 道题`);
+}
+
+function clearQuestionBank() {
+  if (!confirm('确定清空本地题库吗？')) return;
+  localStorage.removeItem(LS_BANK);
+  showToast('题库已清空');
+}
+
 async function onBankSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2077,8 +2099,23 @@ async function onBankSelected(event) {
         answer: x.answer ? String(x.answer) : ''
       }));
     if (cleaned.length === 0) throw new Error('没有找到有效题目');
-    localStorage.setItem(LS_BANK, JSON.stringify(cleaned));
-    showToast(`题库已导入 ${cleaned.length} 道题`);
+    const existing = getQuestionBank();
+    const seen = new Set(existing.map(q => String(q.question).trim()));
+    let added = 0;
+    for (const q of cleaned) {
+      const key = String(q.question).trim();
+      if (!seen.has(key)) {
+        existing.push(q);
+        seen.add(key);
+        added++;
+      }
+    }
+    if (added === 0) {
+      showToast('没有新增题目（题库里已全部存在）');
+      return;
+    }
+    localStorage.setItem(LS_BANK, JSON.stringify(existing));
+    showToast(`题库已合并 ${added} 道，共 ${existing.length} 道`);
   } catch (err) {
     showToast('题库导入失败：' + err.message);
   }
