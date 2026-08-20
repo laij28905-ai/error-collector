@@ -38,7 +38,8 @@ const DEFAULT_SETTINGS = {
   ocrModel: 'gpt-4o-mini',
   syncToken: '',
   syncGistId: '',
-  autoSync: false
+  autoSync: false,
+  dailyGoal: 3
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -46,6 +47,7 @@ const INTERVALS = [1, 3, 7, 14, 30];
 const LS_SETTINGS = 'tf-settings-v2';
 const LS_ERRORS = 'tf-errors-v2';
 const LS_STUDY_DAYS = 'tf-study-days-v2';
+const LS_DAILY = 'tf-daily-review-v2';
 
 let db = null;
 let useLocalFallback = false;
@@ -188,6 +190,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateNavBadge();
   const dueNow = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= Date.now())).length;
   if (dueNow > 0) setTimeout(() => showToast(`今天还有 ${dueNow} 道错题待复习`), 700);
+  const dailyGoal = Math.max(0, Number(settings.dailyGoal) || 0);
+  const dailyCount = getDailyReviewCount();
+  if (dailyGoal > 0 && dailyCount < dailyGoal) {
+    setTimeout(() => showToast(`今日还差 ${dailyGoal - dailyCount} 次复习`), 1200);
+  }
   if (settings.autoSync && settings.syncToken && settings.syncGistId) {
     setTimeout(() => syncPull(true), 900);
   }
@@ -292,6 +299,7 @@ function setGreeting() {
 function updateHome() {
   setGreeting();
   updateStreak();
+  updateDailyProgress();
   const now = Date.now();
   const total = allErrors.length;
   const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now)).length;
@@ -398,6 +406,38 @@ function recordStudyDay() {
     localStorage.setItem(LS_STUDY_DAYS, JSON.stringify(days));
   }
   updateStreak();
+}
+
+function getDailyReviewCount() {
+  try {
+    const map = JSON.parse(localStorage.getItem(LS_DAILY) || '{}') || {};
+    return Number(map[dateKey(new Date())] || 0);
+  } catch (e) {
+    return 0;
+  }
+}
+
+function recordDailyReview() {
+  const key = dateKey(new Date());
+  let map = {};
+  try {
+    map = JSON.parse(localStorage.getItem(LS_DAILY) || '{}') || {};
+  } catch (e) {
+    map = {};
+  }
+  map[key] = (Number(map[key]) || 0) + 1;
+  localStorage.setItem(LS_DAILY, JSON.stringify(map));
+  updateDailyProgress();
+}
+
+function updateDailyProgress() {
+  const text = document.getElementById('dailyProgressText');
+  const fill = document.getElementById('dailyProgressFill');
+  if (!text || !fill) return;
+  const count = getDailyReviewCount();
+  const goal = Math.max(0, Number(settings.dailyGoal) || 0);
+  text.textContent = `${count}/${goal}`;
+  fill.style.width = goal > 0 ? Math.min(100, Math.round(count / goal * 100)) + '%' : '0%';
 }
 
 function openWeeklyReport() {
@@ -1438,6 +1478,7 @@ async function rateReview(grade) {
     updatedAt: now.toISOString()
   });
   recordStudyDay();
+  recordDailyReview();
   reviewIndex++;
   updateHome();
   updateNavBadge();
@@ -1476,6 +1517,7 @@ function saveSettings() {
   settings.syncToken = document.getElementById('syncToken').value.trim();
   settings.syncGistId = document.getElementById('syncGistId').value.trim();
   settings.autoSync = document.getElementById('autoSync').checked;
+  settings.dailyGoal = Math.max(0, Math.min(20, Number(document.getElementById('dailyGoal').value) || 0));
   persistSettings();
   showToast('设置已保存');
 }
@@ -1490,6 +1532,7 @@ function fillSettingsForm() {
   document.getElementById('syncToken').value = settings.syncToken || '';
   document.getElementById('syncGistId').value = settings.syncGistId || '';
   document.getElementById('autoSync').checked = !!settings.autoSync;
+  document.getElementById('dailyGoal').value = settings.dailyGoal || 0;
 }
 
 function readSyncSettings() {

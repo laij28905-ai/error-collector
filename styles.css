@@ -346,6 +346,12 @@ textarea {
   padding: 4px;
 }
 
+.daily-text {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .weak-list {
   display: flex;
   flex-direction: column;
