@@ -70,6 +70,8 @@ let currentDetailId = null;
 let toastTimer = null;
 let cropModalOpen = false;
 let cropState = null;
+let batchMode = false;
+let selectedIds = new Set();
 
 /* ===================== 数据层 ===================== */
 
@@ -1201,9 +1203,13 @@ function renderErrorList() {
         : '<span class="tag due">待复盘</span>';
     const aiTag = e.analysis ? '<span class="tag ai">AI</span>' : '';
     const causeTag = `<span class="tag">${escapeHtml(e.cause || '未标注错因')}</span>`;
+    const selectHtml = batchMode
+      ? `<label class="batch-check" onclick="event.stopPropagation()"><input type="checkbox" ${selectedIds.has(e.id) ? 'checked' : ''} onchange="toggleBatchSelect(${e.id}, this.checked)"></label>`
+      : '';
     return `
-      <button class="error-card" onclick="openDetail(${e.id})">
+      <div class="error-card" ${batchMode ? '' : `onclick="openDetail(${e.id})"`}>
         <div class="ec-head">
+          ${selectHtml}
           <span class="subject-avatar ${subjectClass(e.subject)}">${subjectIcon(e.subject)}</span>
           <span class="ec-info">
             <span class="ec-topic">${escapeHtml(e.topic || '未分类')}</span>
@@ -1212,12 +1218,96 @@ function renderErrorList() {
         </div>
         <div class="ec-preview">${escapeHtml(e.text)}</div>
         <div class="ec-tags">${statusTag}${causeTag}${aiTag}</div>
-      </button>
+      </div>
     `;
   }).join('');
+  updateBatchCount();
 }
 
 /* ===================== 详情 ===================== */
+
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  if (!batchMode) selectedIds.clear();
+  const actions = document.getElementById('batchActions');
+  if (actions) actions.classList.toggle('hidden', !batchMode);
+  renderErrorList();
+}
+
+function toggleBatchSelect(id, checked) {
+  if (checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  updateBatchCount();
+}
+
+function toggleSelectAll(checked) {
+  const ids = getFilteredErrors().map(e => e.id);
+  if (checked) ids.forEach(id => selectedIds.add(id));
+  else ids.forEach(id => selectedIds.delete(id));
+  renderErrorList();
+}
+
+function updateBatchCount() {
+  const countEl = document.getElementById('batchCount');
+  if (countEl) countEl.textContent = `已选 ${selectedIds.size}`;
+  const allEl = document.getElementById('selectAllBatch');
+  if (allEl) {
+    const ids = getFilteredErrors().map(e => e.id);
+    allEl.checked = ids.length > 0 && ids.every(id => selectedIds.has(id));
+    allEl.indeterminate = !allEl.checked && ids.some(id => selectedIds.has(id));
+  }
+}
+
+async function batchMarkMastered() {
+  if (selectedIds.size === 0) {
+    showToast('请先选择错题');
+    return;
+  }
+  if (!confirm(`将 ${selectedIds.size} 道错题标记为已掌握？`)) return;
+  const now = new Date().toISOString();
+  for (const id of selectedIds) {
+    const e = findError(id);
+    if (!e) continue;
+    e.status = 'mastered';
+    e.nextReviewAt = null;
+    e.reviewCount = Math.max(5, e.reviewCount || 0);
+    e.updatedAt = now;
+    await storeUpdate(id, {
+      status: 'mastered',
+      nextReviewAt: null,
+      reviewCount: e.reviewCount,
+      updatedAt: now
+    });
+  }
+  selectedIds.clear();
+  batchMode = false;
+  const actions = document.getElementById('batchActions');
+  if (actions) actions.classList.add('hidden');
+  updateHome();
+  updateNavBadge();
+  renderErrorList();
+  showToast('已批量标记为掌握');
+}
+
+async function batchDelete() {
+  if (selectedIds.size === 0) {
+    showToast('请先选择错题');
+    return;
+  }
+  if (!confirm(`确定删除选中的 ${selectedIds.size} 道错题？`)) return;
+  for (const id of selectedIds) {
+    await storeDelete(id);
+  }
+  await loadErrors();
+  selectedIds.clear();
+  batchMode = false;
+  const actions = document.getElementById('batchActions');
+  if (actions) actions.classList.add('hidden');
+  updateHome();
+  updateNavBadge();
+  renderErrorList();
+  showToast('已批量删除');
+}
 
 function openDetail(id) {
   const e = findError(id);

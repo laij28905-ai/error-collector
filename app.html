@@ -131,6 +131,16 @@
       <div class="search-row">
         <input id="searchInput" type="search" placeholder="搜索题目或知识点" oninput="setQuery(this.value)">
       </div>
+      <div class="batch-bar">
+        <button class="btn outline" onclick="toggleBatchMode()">批量管理</button>
+        <div id="batchActions" class="batch-actions hidden">
+          <label class="select-all"><input id="selectAllBatch" type="checkbox" onchange="toggleSelectAll(this.checked)">全选</label>
+          <span id="batchCount" class="batch-count">已选 0</span>
+          <button class="btn green" onclick="batchMarkMastered()">标记掌握</button>
+          <button class="btn red" onclick="batchDelete()">删除</button>
+          <button class="btn" onclick="toggleBatchMode()">退出</button>
+        </div>
+      </div>
       <div class="chip-row" id="subjectChips"></div>
       <div class="segmented" id="statusSeg"></div>
       <div id="errorList" class="error-list"></div>
@@ -277,7 +287,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.8 · Team Future</span>
+            <span>v3.9 · Team Future</span>
           </div>
         </div>
       </div>

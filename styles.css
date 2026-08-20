@@ -645,6 +645,51 @@ textarea {
   margin-bottom: 12px;
 }
 
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.batch-bar .btn {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.select-all input,
+.batch-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary);
+}
+
+.batch-count {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.batch-check {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .chip-row {
   display: flex;
   gap: 8px;
