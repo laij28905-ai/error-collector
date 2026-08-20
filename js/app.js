@@ -48,6 +48,7 @@ const LS_SETTINGS = 'tf-settings-v2';
 const LS_ERRORS = 'tf-errors-v2';
 const LS_STUDY_DAYS = 'tf-study-days-v2';
 const LS_DAILY = 'tf-daily-review-v2';
+const LS_BANK = 'tf-question-bank-v2';
 
 let db = null;
 let useLocalFallback = false;
@@ -207,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bindEvents() {
   document.getElementById('fileInput').addEventListener('change', onFileSelected);
   document.getElementById('importInput').addEventListener('change', onImportSelected);
+  document.getElementById('bankInput').addEventListener('change', onBankSelected);
   window.addEventListener('paste', (e) => {
     if (currentPage !== 'capture') return;
     handleClipboardItems(e.clipboardData && e.clipboardData.items);
@@ -1423,6 +1425,15 @@ function localAnalysis(e) {
 }
 
 function makeSimilarQuestions(e) {
+  const bank = getQuestionBank();
+  if (bank.length) {
+    const all = bank.filter(q => q && q.question);
+    const exact = all.filter(q => (!q.subject || q.subject === e.subject) && (!q.topic || q.topic === e.topic));
+    const bySubject = all.filter(q => !q.subject || q.subject === e.subject);
+    const pool = Array.from(new Map([...exact, ...bySubject, ...all].map(q => [q.question, q])).values());
+    const picked = pool.slice(0, 3).map(q => q.question);
+    if (picked.length) return picked;
+  }
   const subject = e.subject;
   if (subject === '数学') return ['已知函数 f(x)=x^2-2x，求单调区间。', '解方程 x^2-5x+6=0。', '数列 a(n+1)=a(n)+3，求第 10 项。'];
   if (subject === '物理') return ['已知初速度和加速度，求 5 秒后的速度。', '分析斜面上物体的受力。', '已知电压和电阻，求电流。'];
@@ -1896,6 +1907,43 @@ async function onImportSelected(event) {
     showToast(`已导入 ${cleaned.length} 条错题`);
   } catch (err) {
     showToast('导入失败：' + err.message);
+  }
+  event.target.value = '';
+}
+
+function getQuestionBank() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LS_BANK) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function importQuestionBank() {
+  document.getElementById('bankInput').click();
+}
+
+async function onBankSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const items = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.items || []);
+    if (!Array.isArray(items)) throw new Error('题库格式不正确');
+    const cleaned = items
+      .filter(x => x && x.question)
+      .map(x => ({
+        subject: x.subject || '',
+        topic: x.topic || '',
+        question: String(x.question),
+        answer: x.answer ? String(x.answer) : ''
+      }));
+    if (cleaned.length === 0) throw new Error('没有找到有效题目');
+    localStorage.setItem(LS_BANK, JSON.stringify(cleaned));
+    showToast(`题库已导入 ${cleaned.length} 道题`);
+  } catch (err) {
+    showToast('题库导入失败：' + err.message);
   }
   event.target.value = '';
 }

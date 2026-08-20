@@ -249,6 +249,10 @@
             <span class="mi-icon">&#128229;</span>
             <span>导入数据</span>
           </button>
+          <button class="menu-item" onclick="importQuestionBank()">
+            <span class="mi-icon">&#128194;</span>
+            <span>导入题库</span>
+          </button>
           <button class="menu-item" onclick="exportPrintable()">
             <span class="mi-icon">&#128424;</span>
             <span>导出打印版</span>
@@ -273,7 +277,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.7 · Team Future</span>
+            <span>v3.8 · Team Future</span>
           </div>
         </div>
       </div>
@@ -317,6 +321,7 @@
 
 <input id="fileInput" type="file" accept="image/*" hidden>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
+<input id="bankInput" type="file" accept=".json,application/json" hidden>
 
 <script src="vendor/dexie.min.js"></script>
 <script src="js/app.js"></script>
