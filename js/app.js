@@ -689,6 +689,89 @@ function exportMasteryTrend() {
   showToast('掌握趋势已导出');
 }
 
+function getWeeklyPlanData() {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.now() + i * 86400000);
+    const key = dateKey(d);
+    const dayStart = new Date(key + 'T00:00:00').getTime();
+    const dayEnd = dayStart + 86400000;
+    let items;
+    if (i === 0) {
+      items = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() < dayEnd));
+    } else {
+      items = allErrors.filter(e => e.nextReviewAt && new Date(e.nextReviewAt).getTime() >= dayStart && new Date(e.nextReviewAt).getTime() < dayEnd);
+    }
+    days.push({
+      key,
+      label: d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' }),
+      items: items.slice(0, 6)
+    });
+  }
+  return days;
+}
+
+function openWeeklyPlan() {
+  if (allErrors.length === 0) {
+    openModal('周学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后自动生成周计划</div></div>');
+    return;
+  }
+  const days = getWeeklyPlanData();
+  const blocks = days.map(day => `
+    <div class="section-title" style="margin-top:14px"><span>${day.label}</span><span class="weak-count">${day.items.length}题</span></div>
+    <ul class="plan-list">
+      ${day.items.length ? day.items.map((e, i) => `<li>${i + 1}. ${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')}</li>`).join('') : '<li>无到期任务</li>'}
+    </ul>
+  `).join('');
+  const html = `
+    ${blocks}
+    <button class="btn primary full" style="margin-top:14px" onclick="exportWeeklyPlan()">导出周计划</button>
+  `;
+  openModal('周学习计划', html);
+}
+
+function exportWeeklyPlan() {
+  if (allErrors.length === 0) {
+    showToast('还没有数据可导出');
+    return;
+  }
+  const days = getWeeklyPlanData();
+  const blocks = days.map(day => `
+    <h2>${day.label}（${day.items.length} 题）</h2>
+    <ul>
+      ${day.items.length ? day.items.map((e, i) => `<li>${i + 1}. ${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')}</li>`).join('') : '<li>无到期任务</li>'}
+    </ul>
+  `).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>周学习计划</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 720px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 18px; }
+  h2 { font-size: 16px; margin: 18px 0 8px; }
+  ul { padding-left: 20px; line-height: 1.8; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>周学习计划</h1>
+<div class="sub">Team Future · 错题助手 · ${new Date().toLocaleDateString('zh-CN')}</div>
+${blocks}
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `周学习计划_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('周计划已导出');
+}
+
 function getStudyPlanData() {
   const now = Date.now();
   const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now));
