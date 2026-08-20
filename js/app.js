@@ -481,6 +481,63 @@ function openWeeklyReport() {
 
 /* ===================== 录入 / 拍照 ===================== */
 
+function openSubjectBoard() {
+  if (allErrors.length === 0) {
+    openModal('学情看板', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可查看学科掌握情况</div></div>');
+    return;
+  }
+
+  const bySubject = {};
+  allErrors.forEach(e => {
+    const key = e.subject || '未分类';
+    if (!bySubject[key]) bySubject[key] = { total: 0, mastered: 0, due: 0 };
+    bySubject[key].total += 1;
+    if (e.status === 'mastered') bySubject[key].mastered += 1;
+    if (e.status !== 'mastered') bySubject[key].due += 1;
+  });
+
+  const subjectRows = Object.entries(bySubject).map(([name, s]) => {
+    const rate = s.total ? Math.round(s.mastered / s.total * 100) : 0;
+    return `
+      <div class="report-row">
+        <span>${escapeHtml(name)}</span>
+        <div class="weak-bar"><i style="width:${rate}%"></i></div>
+        <span class="weak-count">${s.mastered}/${s.total}</span>
+      </div>
+    `;
+  }).join('');
+
+  const causeCounts = {};
+  allErrors.forEach(e => {
+    const key = e.cause || '未标注';
+    causeCounts[key] = (causeCounts[key] || 0) + 1;
+  });
+  const maxCause = Math.max(1, ...Object.values(causeCounts));
+  const causeRows = Object.entries(causeCounts).sort((a, b) => b[1] - a[1]).map(([name, count]) => `
+    <div class="report-row">
+      <span>${escapeHtml(name)}</span>
+      <div class="weak-bar"><i style="width:${Math.round(count / maxCause * 100)}%"></i></div>
+      <span class="weak-count">${count}题</span>
+    </div>
+  `).join('');
+
+  const overall = Math.round(allErrors.filter(e => e.status === 'mastered').length / allErrors.length * 100);
+  const html = `
+    <div class="report-block">
+      <div class="report-row">
+        <span>总体掌握率</span>
+        <div class="weak-bar"><i style="width:${overall}%"></i></div>
+        <span class="weak-count">${overall}%</span>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:16px"><span>学科掌握</span></div>
+    <div class="report-block">${subjectRows}</div>
+    <div class="section-title" style="margin-top:16px"><span>错因分布</span></div>
+    <div class="report-block">${causeRows}</div>
+  `;
+  openModal('学情看板', html);
+}
+
 async function startCamera() {
   const preview = document.getElementById('capturePreview');
   preview.innerHTML = '<video id="videoEl" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
