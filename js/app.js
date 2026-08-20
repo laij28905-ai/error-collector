@@ -285,6 +285,10 @@ function applyInitialHash() {
     showParentReport();
     return;
   }
+  if (raw === 'class-report') {
+    openClassSummary();
+    return;
+  }
   if (raw.startsWith('bank-gist-')) {
     const gid = raw.slice('bank-gist-'.length);
     if (gid) {
@@ -583,6 +587,22 @@ function copyParentReportLink() {
     });
   } else {
     window.prompt('复制家长周报链接', link);
+  }
+}
+
+function copyClassReportLink() {
+  if (getClassSummaryData().students.length === 0) {
+    showToast('还没有班级数据可分享');
+    return;
+  }
+  const link = `${location.origin}${location.pathname}#class-report`;
+  const done = () => showToast('班级报告链接已复制');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done).catch(() => {
+      window.prompt('复制班级报告链接', link);
+    });
+  } else {
+    window.prompt('复制班级报告链接', link);
   }
 }
 
