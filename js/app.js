@@ -2940,6 +2940,7 @@ function openClassSummary() {
     <div class="section-title" style="margin-top:16px"><span>班级近 7 天新增掌握</span></div>
     <div class="report-block">${trendMasteredRows}</div>
     <button class="btn primary full" style="margin-top:14px" onclick="exportClassSummary()">导出班级汇总</button>
+    <button class="btn outline full" style="margin-top:8px" onclick="showClassQr()">显示二维码</button>
   `;
   openModal('班级汇总', html);
 }
@@ -3038,6 +3039,17 @@ function exportStudentReport(name) {
   a.click();
   URL.revokeObjectURL(url);
   showToast('学生报告已导出');
+}
+
+function showClassQr() {
+  const link = `${location.origin}${location.pathname}#parent-report`;
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(link)}`;
+  openModal('班级报告二维码', `
+    <div style="text-align:center">
+      <img src="${qr}" alt="班级报告二维码" style="width:260px;max-width:82%;border-radius:8px">
+      <div class="report-note">扫码打开本周学习摘要</div>
+    </div>
+  `);
 }
 
 function exportClassSummary() {
