@@ -2622,7 +2622,7 @@ function openClassSummary() {
     return;
   }
   const studentRows = d.students.map(s => `
-    <div class="report-row">
+    <div class="report-row" style="cursor:pointer" onclick="openStudentDetail(this.dataset.name)" data-name="${escapeHtml(s.name)}">
       <span>${escapeHtml(s.name)}</span>
       <div class="weak-bar"><i style="width:${s.rate}%"></i></div>
       <span class="weak-count">${s.mastered}/${s.total}</span>
@@ -2667,6 +2667,39 @@ function openClassSummary() {
     <button class="btn primary full" style="margin-top:14px" onclick="exportClassSummary()">导出班级汇总</button>
   `;
   openModal('班级汇总', html);
+}
+
+function openStudentDetail(name) {
+  const arr = getClassData()[name] || [];
+  if (!arr.length) {
+    showToast('没有找到该学生的数据');
+    return;
+  }
+  const mastered = arr.filter(e => e.status === 'mastered').length;
+  const rate = Math.round(mastered / arr.length * 100);
+  const counts = {};
+  arr.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const weakRows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([topic, count]) => `<li>${escapeHtml(topic)}（${count} 题）</li>`).join('');
+  const errorRows = arr.slice(0, 20).map((e, i) => `
+    <div class="report-row">
+      <span>${i + 1}. ${escapeHtml(e.topic || '未分类')}</span>
+      <span>${e.status === 'mastered' ? '已掌握' : '待复习'}</span>
+    </div>
+  `).join('');
+  const html = `
+    <div class="report-block">
+      <div class="report-row"><span>掌握率</span><div class="weak-bar"><i style="width:${rate}%"></i></div><span class="weak-count">${mastered}/${arr.length}</span></div>
+    </div>
+    <div class="section-title" style="margin-top:16px"><span>薄弱知识点</span></div>
+    <ul class="plan-list">${weakRows}</ul>
+    <div class="section-title" style="margin-top:16px"><span>最近错题</span></div>
+    <div class="report-block">${errorRows}</div>
+  `;
+  openModal(`学生详情 · ${name}`, html);
 }
 
 function exportClassSummary() {
