@@ -544,6 +544,55 @@ function openSubjectBoard() {
   openModal('学情看板', html);
 }
 
+function openMasteryTrend() {
+  if (allErrors.length === 0) {
+    openModal('掌握趋势', '<div class="empty-state"><div class="es-icon">📈</div><div class="es-title">还没有数据</div><div class="es-desc">录入并复习错题后即可查看趋势</div></div>');
+    return;
+  }
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push({
+      key: dateKey(d),
+      label: d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) + (i === 0 ? '（今天）' : '')
+    });
+  }
+  const reviewCounts = {};
+  const masteredCounts = {};
+  allErrors.forEach(e => {
+    if (e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      reviewCounts[k] = (reviewCounts[k] || 0) + 1;
+    }
+    if (e.status === 'mastered' && e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      masteredCounts[k] = (masteredCounts[k] || 0) + 1;
+    }
+  });
+  const maxCount = Math.max(1, ...days.map(d => Math.max(reviewCounts[d.key] || 0, masteredCounts[d.key] || 0)));
+  const rows = days.map(d => `
+    <div class="report-row">
+      <span>${d.label}</span>
+      <div class="weak-bar"><i style="width:${Math.max(4, Math.round((reviewCounts[d.key] || 0) / maxCount * 100))}%"></i></div>
+      <span class="weak-count">${reviewCounts[d.key] || 0}次</span>
+    </div>
+  `).join('');
+  const masteredRows = days.map(d => `
+    <div class="report-row">
+      <span>${d.label}</span>
+      <div class="weak-bar" style="background:var(--green-soft)"><i style="width:${Math.max(4, Math.round((masteredCounts[d.key] || 0) / maxCount * 100))}%"></i></div>
+      <span class="weak-count">${masteredCounts[d.key] || 0}题</span>
+    </div>
+  `).join('');
+  const html = `
+    <div class="section-title"><span>每日复习次数</span></div>
+    <div class="report-block">${rows}</div>
+    <div class="section-title" style="margin-top:16px"><span>每日新增掌握</span></div>
+    <div class="report-block">${masteredRows}</div>
+  `;
+  openModal('掌握趋势', html);
+}
+
 function getStudyPlanData() {
   const now = Date.now();
   const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now));
