@@ -54,6 +54,7 @@ const LS_DAILY = 'tf-daily-review-v2';
 const LS_BANK = 'tf-question-bank-v2';
 const LS_CLASS = 'tf-class-data-v2';
 const LS_CLASS_SNAPSHOTS = 'tf-class-snapshots-v2';
+const LS_LAST_BACKUP = 'tf-last-backup-v2';
 
 let db = null;
 let useLocalFallback = false;
@@ -204,6 +205,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dailyCount = getDailyReviewCount();
   if (dailyGoal > 0 && dailyCount < dailyGoal) {
     setTimeout(() => showToast(`今日还差 ${dailyGoal - dailyCount} 次复习`), 1200);
+  }
+  if (allErrors.length > 0 && getBackupDays() > 7) {
+    setTimeout(() => showToast('已超过 7 天未备份，建议导出完整备份'), 1700);
   }
   if (settings.autoSync && settings.syncToken && settings.syncGistId) {
     setTimeout(() => syncPull(true), 900);
@@ -410,6 +414,17 @@ function getStudyDays() {
   } catch (e) {
     return [];
   }
+}
+
+function markBackupTime() {
+  localStorage.setItem(LS_LAST_BACKUP, new Date().toISOString());
+}
+
+function getBackupDays() {
+  const t = localStorage.getItem(LS_LAST_BACKUP);
+  if (!t) return 999;
+  const d = (Date.now() - new Date(t).getTime()) / 86400000;
+  return isNaN(d) ? 999 : Math.floor(d);
 }
 
 function dateKey(date) {
@@ -2302,6 +2317,7 @@ async function syncUpload() {
       document.getElementById('syncGistId').value = gist.id;
     }
     hideProcessing();
+    markBackupTime();
     showToast('已上传到云端');
     return gist && gist.id;
   } catch (err) {
@@ -3161,6 +3177,7 @@ function exportFullBackup() {
   a.download = `完整备份_${new Date().toLocaleDateString('zh-CN')}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  markBackupTime();
   showToast('完整备份已导出');
 }
 
