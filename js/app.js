@@ -2905,7 +2905,61 @@ function openProgressBoard() {
       <span class="weak-count">${s.rate}%</span>
     </div>
   `).join('');
-  openModal('学生进步榜', `<div class="report-block">${rows}</div>`);
+  openModal('学生进步榜', `
+    <div class="report-block">${rows}</div>
+    <button class="btn primary full" style="margin-top:14px" onclick="exportProgressBoard()">导出进步榜</button>
+  `);
+}
+
+function exportProgressBoard() {
+  const d = getClassSummaryData();
+  if (d.students.length === 0) {
+    showToast('还没有学生数据可导出');
+    return;
+  }
+  const medals = ['🥇', '🥈', '🥉'];
+  const sorted = [...d.students].sort((a, b) => b.rate - a.rate || b.mastered - a.mastered);
+  const rows = sorted.map((s, i) => `
+    <tr>
+      <td>${medals[i] || (i + 1)}</td>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${s.total}</td>
+      <td>${s.mastered}</td>
+      <td>${s.rate}%</td>
+    </tr>
+  `).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学生进步榜</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 760px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #e2e7ef; padding: 9px 12px; text-align: left; }
+  th { background: #f3f5f9; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>学生进步榜</h1>
+<div class="sub">Team Future · 共 ${d.students.length} 名学生 · ${new Date().toLocaleDateString('zh-CN')}</div>
+<table>
+  <thead><tr><th>排名</th><th>学生</th><th>错题</th><th>已掌握</th><th>掌握率</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `学生进步榜_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('进步榜已导出');
 }
 
 async function onBankSelected(event) {
