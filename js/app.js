@@ -544,37 +544,41 @@ function openSubjectBoard() {
   openModal('学情看板', html);
 }
 
-function openStudyPlan() {
-  if (allErrors.length === 0) {
-    openModal('学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可生成学习计划</div></div>');
-    return;
-  }
+function getStudyPlanData() {
   const now = Date.now();
   const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now));
-  const dueRows = due.slice(0, 5).map((e, i) => `<li>${i + 1}. ${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')}</li>`).join('') || '<li>今天没有到期错题</li>';
-
+  const dueItems = due.slice(0, 5).map(e => `${e.subject} · ${e.topic || '未分类'}`);
   const counts = {};
   allErrors.forEach(e => {
     const key = e.topic || '未分类';
     counts[key] = (counts[key] || 0) + 1;
   });
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-  const weakRows = top.map(([name, count]) => `<li>${escapeHtml(name)}（${count} 题）</li>`).join('');
+  const weakItems = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => `${name}（${count} 题）`);
   const goal = Math.max(0, Number(settings.dailyGoal) || 0);
   const dailyCount = getDailyReviewCount();
   const remaining = Math.max(0, goal - dailyCount);
+  return { due, dueItems, weakItems, goal, dailyCount, remaining };
+}
 
+function openStudyPlan() {
+  if (allErrors.length === 0) {
+    openModal('学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可生成学习计划</div></div>');
+    return;
+  }
+  const d = getStudyPlanData();
+  const dueRows = d.dueItems.map((x, i) => `<li>${i + 1}. ${escapeHtml(x)}</li>`).join('') || '<li>今天没有到期错题</li>';
+  const weakRows = d.weakItems.map(x => `<li>${escapeHtml(x)}</li>`).join('');
   const html = `
     <div class="report-block">
       <div class="report-row">
         <span>今日待复习</span>
-        <div class="weak-bar"><i style="width:${Math.min(100, due.length * 10)}%"></i></div>
-        <span class="weak-count">${due.length}题</span>
+        <div class="weak-bar"><i style="width:${Math.min(100, d.due.length * 10)}%"></i></div>
+        <span class="weak-count">${d.due.length}题</span>
       </div>
       <div class="report-row">
         <span>今日目标</span>
-        <div class="weak-bar"><i style="width:${goal ? Math.min(100, dailyCount / goal * 100) : 0}%"></i></div>
-        <span class="weak-count">${dailyCount}/${goal}</span>
+        <div class="weak-bar"><i style="width:${d.goal ? Math.min(100, d.dailyCount / d.goal * 100) : 0}%"></i></div>
+        <span class="weak-count">${d.dailyCount}/${d.goal}</span>
       </div>
     </div>
     <div class="section-title" style="margin-top:16px"><span>今日复习清单</span></div>
@@ -583,12 +587,62 @@ function openStudyPlan() {
     <ul class="plan-list">${weakRows}</ul>
     <div class="section-title" style="margin-top:16px"><span>1 / 3 / 7 天安排</span></div>
     <div class="plan-steps">
-      <div><b>今天</b>：完成 ${due.length} 道待复习${remaining > 0 ? `，再补 ${remaining} 次达到目标` : ''}</div>
+      <div><b>今天</b>：完成 ${d.due.length} 道待复习${d.remaining > 0 ? `，再补 ${d.remaining} 次达到目标` : ''}</div>
       <div><b>第 3 天</b>：重做薄弱知识点类似题，回看错因</div>
       <div><b>第 7 天</b>：导出错题卷自测，检查掌握率</div>
     </div>
+    <button class="btn primary full" style="margin-top:14px" onclick="exportStudyPlan()">导出学习计划</button>
   `;
   openModal('学习计划', html);
+}
+
+function exportStudyPlan() {
+  if (allErrors.length === 0) {
+    showToast('还没有数据可导出');
+    return;
+  }
+  const d = getStudyPlanData();
+  const dueRows = d.dueItems.map((x, i) => `<li>${i + 1}. ${escapeHtml(x)}</li>`).join('') || '<li>今天没有到期错题</li>';
+  const weakRows = d.weakItems.map(x => `<li>${escapeHtml(x)}</li>`).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学习计划</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 720px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 20px; }
+  h2 { font-size: 16px; margin: 20px 0 10px; }
+  ul { padding-left: 20px; line-height: 1.8; }
+  .steps { display: flex; flex-direction: column; gap: 8px; }
+  .steps div { border: 1px solid #e2e7ef; border-radius: 8px; padding: 10px 12px; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>学习计划</h1>
+<div class="sub">Team Future · 错题助手 · ${new Date().toLocaleDateString('zh-CN')}</div>
+<h2>今日复习清单（${d.due.length} 道）</h2>
+<ul>${dueRows}</ul>
+<h2>薄弱知识点</h2>
+<ul>${weakRows}</ul>
+<h2>1 / 3 / 7 天安排</h2>
+<div class="steps">
+  <div><b>今天</b>：完成 ${d.due.length} 道待复习${d.remaining > 0 ? `，再补 ${d.remaining} 次达到目标` : ''}</div>
+  <div><b>第 3 天</b>：重做薄弱知识点类似题，回看错因</div>
+  <div><b>第 7 天</b>：导出错题卷自测，检查掌握率</div>
+</div>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `学习计划_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('学习计划已导出');
 }
 
 async function startCamera() {
