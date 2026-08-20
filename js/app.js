@@ -58,6 +58,7 @@ let currentPage = 'home';
 let searchQuery = '';
 let subjectFilter = 'all';
 let statusFilter = 'all';
+let dateFilter = 'all';
 let capturedImage = null;
 let cameraStream = null;
 let videoEl = null;
@@ -1174,6 +1175,11 @@ function setStatusFilter(status) {
   renderErrorList();
 }
 
+function setDateFilter(value) {
+  dateFilter = value;
+  renderErrorList();
+}
+
 function getFilteredErrors() {
   const now = Date.now();
   return allErrors.filter(e => {
@@ -1183,6 +1189,14 @@ function getFilteredErrors() {
     if (searchQuery) {
       const hay = (e.text + ' ' + (e.topic || '') + ' ' + (e.answer || '') + ' ' + e.subject).toLowerCase();
       if (!hay.includes(searchQuery)) return false;
+    }
+    if (dateFilter !== 'all') {
+      const created = e.createdAt ? new Date(e.createdAt) : null;
+      if (!created || isNaN(created.getTime())) return false;
+      const now = new Date();
+      if (dateFilter === 'week' && created.getTime() < Date.now() - 7 * 86400000) return false;
+      if (dateFilter === 'month' && (created.getFullYear() !== now.getFullYear() || created.getMonth() !== now.getMonth())) return false;
+      if (dateFilter === 'year' && created.getFullYear() !== now.getFullYear()) return false;
     }
     return true;
   });

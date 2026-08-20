@@ -141,6 +141,12 @@
           <button class="btn" onclick="toggleBatchMode()">退出</button>
         </div>
       </div>
+      <select id="dateFilter" class="date-filter" onchange="setDateFilter(this.value)">
+        <option value="all">全部时间</option>
+        <option value="week">近 7 天</option>
+        <option value="month">本月</option>
+        <option value="year">今年</option>
+      </select>
       <div class="chip-row" id="subjectChips"></div>
       <div class="segmented" id="statusSeg"></div>
       <div id="errorList" class="error-list"></div>
@@ -287,7 +293,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.9 · Team Future</span>
+            <span>v3.10 · Team Future</span>
           </div>
         </div>
       </div>

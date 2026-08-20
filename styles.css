@@ -645,6 +645,11 @@ textarea {
   margin-bottom: 12px;
 }
 
+.date-filter {
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+
 .batch-bar {
   display: flex;
   align-items: center;
