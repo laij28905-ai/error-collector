@@ -281,6 +281,10 @@ function navigateTo(page) {
 
 function applyInitialHash() {
   const raw = location.hash.replace('#', '');
+  if (raw === 'parent-report') {
+    showParentReport();
+    return;
+  }
   if (raw.startsWith('bank-gist-')) {
     const gid = raw.slice('bank-gist-'.length);
     if (gid) {
@@ -515,6 +519,60 @@ function openWeeklyReport() {
 }
 
 /* ===================== 录入 / 拍照 ===================== */
+
+function getParentReportData() {
+  const now = Date.now();
+  const weekStart = now - 6 * 86400000;
+  const total = allErrors.length;
+  const mastered = allErrors.filter(e => e.status === 'mastered').length;
+  const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now)).length;
+  const weekNew = allErrors.filter(e => e.createdAt && new Date(e.createdAt).getTime() >= weekStart).length;
+  const weekReviewed = allErrors.filter(e => e.lastReviewedAt && new Date(e.lastReviewedAt).getTime() >= weekStart).length;
+  const counts = {};
+  allErrors.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const weak = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return { total, mastered, due, weekNew, weekReviewed, weak };
+}
+
+function copyParentReportLink() {
+  if (allErrors.length === 0) {
+    showToast('还没有数据可分享');
+    return;
+  }
+  const link = `${location.origin}${location.pathname}#parent-report`;
+  const done = () => showToast('家长周报链接已复制');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done).catch(() => {
+      window.prompt('复制家长周报链接', link);
+    });
+  } else {
+    window.prompt('复制家长周报链接', link);
+  }
+}
+
+function showParentReport() {
+  const d = getParentReportData();
+  if (!d.total) {
+    openModal('家长周报', '<div class="empty-state"><div class="es-icon">👨‍👩‍👧</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后生成周报</div></div>');
+    return;
+  }
+  const weakRows = d.weak.map(([name, count]) => `<li>${escapeHtml(name)}（${count} 题）</li>`).join('');
+  const html = `
+    <div class="report-block">
+      <div class="report-row"><span>错题总数</span><div class="weak-bar"><i style="width:${Math.min(100, d.total * 5)}%"></i></div><span class="weak-count">${d.total}</span></div>
+      <div class="report-row"><span>已掌握</span><div class="weak-bar"><i style="width:${d.total ? d.mastered / d.total * 100 : 0}%"></i></div><span class="weak-count">${d.mastered}</span></div>
+      <div class="report-row"><span>待复习</span><div class="weak-bar"><i style="width:${Math.min(100, d.due * 10)}%"></i></div><span class="weak-count">${d.due}</span></div>
+      <div class="report-row"><span>本周新增</span><div class="weak-bar"><i style="width:${Math.min(100, d.weekNew * 10)}%"></i></div><span class="weak-count">${d.weekNew}</span></div>
+      <div class="report-row"><span>本周复习</span><div class="weak-bar"><i style="width:${Math.min(100, d.weekReviewed * 10)}%"></i></div><span class="weak-count">${d.weekReviewed}</span></div>
+    </div>
+    <div class="section-title" style="margin-top:16px"><span>薄弱知识点</span></div>
+    <ul class="plan-list">${weakRows}</ul>
+  `;
+  openModal('家长周报', html);
+}
 
 function openSubjectBoard() {
   if (allErrors.length === 0) {
