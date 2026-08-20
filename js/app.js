@@ -544,6 +544,53 @@ function openSubjectBoard() {
   openModal('学情看板', html);
 }
 
+function openStudyPlan() {
+  if (allErrors.length === 0) {
+    openModal('学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可生成学习计划</div></div>');
+    return;
+  }
+  const now = Date.now();
+  const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now));
+  const dueRows = due.slice(0, 5).map((e, i) => `<li>${i + 1}. ${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')}</li>`).join('') || '<li>今天没有到期错题</li>';
+
+  const counts = {};
+  allErrors.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const weakRows = top.map(([name, count]) => `<li>${escapeHtml(name)}（${count} 题）</li>`).join('');
+  const goal = Math.max(0, Number(settings.dailyGoal) || 0);
+  const dailyCount = getDailyReviewCount();
+  const remaining = Math.max(0, goal - dailyCount);
+
+  const html = `
+    <div class="report-block">
+      <div class="report-row">
+        <span>今日待复习</span>
+        <div class="weak-bar"><i style="width:${Math.min(100, due.length * 10)}%"></i></div>
+        <span class="weak-count">${due.length}题</span>
+      </div>
+      <div class="report-row">
+        <span>今日目标</span>
+        <div class="weak-bar"><i style="width:${goal ? Math.min(100, dailyCount / goal * 100) : 0}%"></i></div>
+        <span class="weak-count">${dailyCount}/${goal}</span>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:16px"><span>今日复习清单</span></div>
+    <ul class="plan-list">${dueRows}</ul>
+    <div class="section-title" style="margin-top:16px"><span>薄弱知识点</span></div>
+    <ul class="plan-list">${weakRows}</ul>
+    <div class="section-title" style="margin-top:16px"><span>1 / 3 / 7 天安排</span></div>
+    <div class="plan-steps">
+      <div><b>今天</b>：完成 ${due.length} 道待复习${remaining > 0 ? `，再补 ${remaining} 次达到目标` : ''}</div>
+      <div><b>第 3 天</b>：重做薄弱知识点类似题，回看错因</div>
+      <div><b>第 7 天</b>：导出错题卷自测，检查掌握率</div>
+    </div>
+  `;
+  openModal('学习计划', html);
+}
+
 async function startCamera() {
   const preview = document.getElementById('capturePreview');
   preview.innerHTML = '<video id="videoEl" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';

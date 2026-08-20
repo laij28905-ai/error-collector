@@ -1,4 +1,4 @@
-const CACHE_NAME = 'team-future-error-collector-v16';
+const CACHE_NAME = 'team-future-error-collector-v17';
 const APP_SHELL = [
   './',
   './index.html',
