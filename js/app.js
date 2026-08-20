@@ -51,6 +51,7 @@ const LS_STUDY_DAYS = 'tf-study-days-v2';
 const LS_DAILY = 'tf-daily-review-v2';
 const LS_BANK = 'tf-question-bank-v2';
 const LS_CLASS = 'tf-class-data-v2';
+const LS_CLASS_SNAPSHOTS = 'tf-class-snapshots-v2';
 
 let db = null;
 let useLocalFallback = false;
@@ -2825,6 +2826,68 @@ function clearClassData() {
   if (!confirm('确定清空所有班级数据吗？')) return;
   localStorage.removeItem(LS_CLASS);
   showToast('班级数据已清空');
+}
+
+function getClassSnapshots() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LS_CLASS_SNAPSHOTS) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveClassSnapshot() {
+  const obj = getClassData();
+  const hasData = Object.values(obj).some(arr => Array.isArray(arr) && arr.length);
+  if (!hasData) {
+    showToast('还没有班级数据可保存');
+    return;
+  }
+  const snapshots = getClassSnapshots();
+  snapshots.push({
+    id: Date.now(),
+    date: new Date().toLocaleString('zh-CN'),
+    students: JSON.parse(JSON.stringify(obj))
+  });
+  if (snapshots.length > 20) snapshots.splice(0, snapshots.length - 20);
+  localStorage.setItem(LS_CLASS_SNAPSHOTS, JSON.stringify(snapshots));
+  showToast('班级快照已保存');
+}
+
+function classRate(arr) {
+  const list = Array.isArray(arr) ? arr : [];
+  if (!list.length) return 0;
+  return Math.round(list.filter(e => e.status === 'mastered').length / list.length * 100);
+}
+
+function openClassCompare() {
+  const snapshots = getClassSnapshots();
+  if (snapshots.length < 2) {
+    openModal('班级对比', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">需要至少两次快照</div><div class="es-desc">先保存两次班级快照后再对比</div></div>');
+    return;
+  }
+  const prev = snapshots[snapshots.length - 2];
+  const curr = snapshots[snapshots.length - 1];
+  const names = new Set([...Object.keys(prev.students || {}), ...Object.keys(curr.students || {})]);
+  const rows = Array.from(names).map(name => {
+    const p = classRate(prev.students[name]);
+    const c = classRate(curr.students[name]);
+    const delta = c - p;
+    const color = delta > 0 ? 'color:var(--green)' : delta < 0 ? 'color:var(--red)' : '';
+    return `
+      <div class="report-row">
+        <span>${escapeHtml(name)}</span>
+        <div class="weak-bar"><i style="width:${c}%"></i></div>
+        <span class="weak-count" style="${color}">${p}% → ${c}% (${delta > 0 ? '+' : ''}${delta})</span>
+      </div>
+    `;
+  }).join('');
+  const html = `
+    <div class="report-note">${prev.date} → ${curr.date}</div>
+    <div class="report-block">${rows}</div>
+  `;
+  openModal('班级对比', html);
 }
 
 async function onBankSelected(event) {
