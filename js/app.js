@@ -370,12 +370,15 @@ function dateKey(date) {
 function updateStreak() {
   const badge = document.getElementById('streakBadge');
   if (!badge) return;
+  badge.textContent = `🔥 ${getStreak()} 天`;
+}
+
+function getStreak() {
   const days = getStudyDays();
   const today = dateKey(new Date());
   const yesterday = dateKey(new Date(Date.now() - 86400000));
   if (!days.includes(today) && !days.includes(yesterday)) {
-    badge.textContent = '🔥 0 天';
-    return;
+    return 0;
   }
   let cursor = days.includes(today) ? today : yesterday;
   let streak = 0;
@@ -384,7 +387,7 @@ function updateStreak() {
     const prev = new Date(new Date(cursor + 'T00:00:00').getTime() - 86400000);
     cursor = dateKey(prev);
   }
-  badge.textContent = `🔥 ${streak} 天`;
+  return streak;
 }
 
 function recordStudyDay() {
@@ -1664,6 +1667,97 @@ ${rows}
   a.click();
   URL.revokeObjectURL(url);
   showToast('打印版已导出，可打开后直接打印');
+}
+
+function exportStudyReport() {
+  if (allErrors.length === 0) {
+    showToast('还没有错题，无法生成学习报告');
+    return;
+  }
+  const now = Date.now();
+  const weekStart = now - 6 * 86400000;
+  const total = allErrors.length;
+  const mastered = allErrors.filter(e => e.status === 'mastered').length;
+  const due = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now)).length;
+  const subjects = new Set(allErrors.map(e => e.subject)).size;
+  const weekNew = allErrors.filter(e => e.createdAt && new Date(e.createdAt).getTime() >= weekStart).length;
+  const weekReviewed = allErrors.filter(e => e.lastReviewedAt && new Date(e.lastReviewedAt).getTime() >= weekStart).length;
+  const streak = getStreak();
+
+  const counts = {};
+  allErrors.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const weakRows = top.map(([name, count]) => `<li>${escapeHtml(name)}：${count} 题</li>`).join('');
+
+  const recentRows = allErrors.slice(0, 10).map((e, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(e.subject)}</td>
+      <td>${escapeHtml(e.topic || '未分类')}</td>
+      <td>${escapeHtml(e.cause || '未标注')}</td>
+      <td>${e.status === 'mastered' ? '已掌握' : '待复习'}</td>
+    </tr>
+  `).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>错题学习报告</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 820px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 22px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+  .stat { border: 1px solid #e2e7ef; border-radius: 8px; padding: 14px; text-align: center; }
+  .stat b { display: block; font-size: 24px; color: #4353c8; }
+  .stat span { font-size: 12px; color: #697386; }
+  h2 { font-size: 16px; margin: 20px 0 10px; }
+  ul { padding-left: 20px; line-height: 1.8; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border: 1px solid #e2e7ef; padding: 8px 10px; text-align: left; }
+  th { background: #f3f5f9; }
+  .note { margin-top: 24px; color: #697386; font-size: 12px; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>错题学习报告</h1>
+<div class="sub">Team Future · 轻量化AI高中错题个性化学习助手 · ${new Date().toLocaleDateString('zh-CN')}</div>
+<div class="stats">
+  <div class="stat"><b>${total}</b><span>错题总数</span></div>
+  <div class="stat"><b>${mastered}</b><span>已掌握</span></div>
+  <div class="stat"><b>${due}</b><span>待复习</span></div>
+  <div class="stat"><b>${subjects}</b><span>涉及科目</span></div>
+</div>
+<h2>本周概览</h2>
+<ul>
+  <li>本周新增错题：${weekNew} 题</li>
+  <li>本周完成复习：${weekReviewed} 次</li>
+  <li>连续学习天数：${streak} 天</li>
+</ul>
+<h2>薄弱知识点</h2>
+<ul>${weakRows}</ul>
+<h2>最近错题</h2>
+<table>
+  <thead><tr><th>#</th><th>科目</th><th>知识点</th><th>错因</th><th>状态</th></tr></thead>
+  <tbody>${recentRows}</tbody>
+</table>
+<div class="note">本报告由错题助手本地生成，仅供学习反馈使用。</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `学习报告_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('学习报告已导出');
 }
 
 function importData() {
