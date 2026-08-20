@@ -219,6 +219,7 @@ function bindEvents() {
   document.getElementById('importInput').addEventListener('change', onImportSelected);
   document.getElementById('bankInput').addEventListener('change', onBankSelected);
   document.getElementById('classInput').addEventListener('change', onClassSelected);
+  document.getElementById('backupInput').addEventListener('change', onBackupSelected);
   window.addEventListener('paste', (e) => {
     if (currentPage !== 'capture') return;
     handleClipboardItems(e.clipboardData && e.clipboardData.items);
@@ -3132,6 +3133,75 @@ function clearClassData() {
   if (!confirm('确定清空所有班级数据吗？')) return;
   localStorage.removeItem(LS_CLASS);
   showToast('班级数据已清空');
+}
+
+function exportFullBackup() {
+  let daily = {};
+  try {
+    daily = JSON.parse(localStorage.getItem(LS_DAILY) || '{}');
+  } catch (e) {
+    daily = {};
+  }
+  const payload = {
+    app: 'TeamFutureErrorCollector',
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    errors: allErrors,
+    bank: getQuestionBank(),
+    classData: getClassData(),
+    snapshots: getClassSnapshots(),
+    settings,
+    studyDays: getStudyDays(),
+    daily
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `完整备份_${new Date().toLocaleDateString('zh-CN')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('完整备份已导出');
+}
+
+function importFullBackup() {
+  document.getElementById('backupInput').click();
+}
+
+async function onBackupSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (!parsed.errors && !parsed.bank && !parsed.classData) {
+      throw new Error('不是完整的备份文件');
+    }
+    if (!confirm('导入将替换当前数据，确定继续吗？')) return;
+    if (Array.isArray(parsed.errors)) {
+      await storeClear();
+      await storeBulkAdd(parsed.errors.filter(x => x && x.text));
+    }
+    if (Array.isArray(parsed.bank)) localStorage.setItem(LS_BANK, JSON.stringify(parsed.bank));
+    if (parsed.classData && typeof parsed.classData === 'object') localStorage.setItem(LS_CLASS, JSON.stringify(parsed.classData));
+    if (Array.isArray(parsed.snapshots)) localStorage.setItem(LS_CLASS_SNAPSHOTS, JSON.stringify(parsed.snapshots));
+    if (parsed.settings && typeof parsed.settings === 'object') {
+      settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings);
+      persistSettings();
+      applyTheme();
+      fillSettingsForm();
+    }
+    if (Array.isArray(parsed.studyDays)) localStorage.setItem(LS_STUDY_DAYS, JSON.stringify(parsed.studyDays));
+    if (parsed.daily && typeof parsed.daily === 'object') localStorage.setItem(LS_DAILY, JSON.stringify(parsed.daily));
+    await loadErrors();
+    updateHome();
+    updateNavBadge();
+    renderErrorList();
+    renderSubjectSettings();
+    showToast('完整备份已恢复');
+  } catch (err) {
+    showToast('恢复失败：' + err.message);
+  }
+  event.target.value = '';
 }
 
 function getClassSnapshots() {

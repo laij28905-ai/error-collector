@@ -338,6 +338,14 @@
             <span class="mi-icon">&#127942;</span>
             <span>学生进步榜</span>
           </button>
+          <button class="menu-item" onclick="exportFullBackup()">
+            <span class="mi-icon">&#128190;</span>
+            <span>导出完整备份</span>
+          </button>
+          <button class="menu-item" onclick="importFullBackup()">
+            <span class="mi-icon">&#128190;</span>
+            <span>导入完整备份</span>
+          </button>
           <button class="menu-item danger" onclick="clearClassData()">
             <span class="mi-icon">&#128465;</span>
             <span>清空班级数据</span>
@@ -354,7 +362,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.35 · Team Future</span>
+            <span>v3.36 · Team Future</span>
           </div>
         </div>
       </div>
@@ -400,6 +408,7 @@
 <input id="importInput" type="file" accept=".json,application/json" hidden>
 <input id="bankInput" type="file" accept=".json,application/json" hidden>
 <input id="classInput" type="file" accept=".json,application/json" hidden>
+<input id="backupInput" type="file" accept=".json,application/json" hidden>
 
 <script src="vendor/dexie.min.js"></script>
 <script src="js/app.js"></script>
