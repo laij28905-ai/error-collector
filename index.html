@@ -2,52 +2,278 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#f7f8fb">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f7f4ee">
+<meta name="description" content="轻量化AI高中错题个性化学习助手 - Team Future">
 <link rel="manifest" href="manifest.json">
-<title>错题复盘助手</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234353c8'/%3E%3Ctext x='32' y='42' font-size='30' text-anchor='middle' fill='white'%3E%E9%94%99%3C/text%3E%3C/svg%3E">
+<title>轻量化AI高中错题个性化学习助手</title>
 <style>
-:root{--bg:#f7f8fb;--card:#fff;--text:#182033;--muted:#768197;--line:#e7eaf0;--blue:#2563eb;--green:#16a34a;--orange:#f59e0b;--red:#ef4444}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}.app{max-width:520px;min-height:100vh;margin:0 auto;padding-bottom:92px}.top{position:sticky;top:0;z-index:5;background:rgba(247,248,251,.92);backdrop-filter:blur(14px);padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.top h1{margin:0;font-size:20px}.net{font-size:12px;color:var(--muted);padding:6px 10px;border-radius:999px;background:#eef1f6}.net.online{color:#087443;background:#e8f8ef}.hero{padding:22px 18px 14px}.hello{font-size:26px;line-height:1.25;margin:0 0 14px}.cameraBtn{width:100%;height:132px;border-radius:24px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;box-shadow:0 18px 35px rgba(37,99,235,.24);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}.cameraBtn b{font-size:24px}.cameraBtn span{font-size:14px;opacity:.9}.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px 14px}.quick button,.btn{border-radius:14px;background:var(--card);color:var(--text);border:1px solid var(--line);padding:13px 12px}.quick button.active,.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.page{display:none;padding:0 18px}.page.active{display:block}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 8px 24px rgba(24,32,51,.04)}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{text-align:center;background:#f4f6fa;border-radius:14px;padding:12px}.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}.preview{min-height:190px;border:1px dashed #cdd4df;border-radius:18px;background:#f8fafc;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);overflow:hidden}.preview img{width:100%;display:block}.field{margin-top:12px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--text);padding:12px}.field textarea{min-height:104px;resize:vertical}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.btn.full{width:100%;margin-top:12px}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.item{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}.item h3{margin:0 0 7px;font-size:16px}.item p{margin:0 0 8px;color:#3b4558;line-height:1.55}.meta,.hint{font-size:12px;color:var(--muted);line-height:1.6}.pill{display:inline-block;margin-right:8px;padding:5px 9px;border-radius:999px;background:#eef1f6;color:#526078;font-size:12px}.analysis{white-space:pre-wrap;line-height:1.75;color:#26344d}.empty{text-align:center;color:var(--muted);padding:34px 12px}.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#172033;color:#fff;padding:10px 14px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:20}.toast.show{opacity:1}.bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 12px}.bottom button{padding:10px 4px;border-radius:12px;background:#fff;color:var(--muted)}.bottom button.active{background:#eef4ff;color:var(--blue)}@media(max-width:380px){.row,.quick,.actions{grid-template-columns:1fr}.cameraBtn{height:116px}}
+  :root {
+    --ink: #1e2434;
+    --muted: #6c7284;
+    --paper: #f7f4ee;
+    --card: #ffffff;
+    --line: #e7e2d8;
+    --indigo: #4353c8;
+    --teal: #0f8f84;
+    --coral: #d9623f;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px 88px;
+    text-align: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 22px;
+  }
+
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--coral);
+  }
+
+  h1 {
+    font-size: clamp(34px, 8vw, 58px);
+    line-height: 1.18;
+    letter-spacing: 0;
+    max-width: 720px;
+  }
+
+  h1 .ai {
+    color: var(--indigo);
+  }
+
+  .subtitle {
+    margin-top: 16px;
+    max-width: 520px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--muted);
+  }
+
+  .features {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 26px;
+  }
+
+  .feature {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .feature:nth-child(1) {
+    color: var(--indigo);
+  }
+
+  .feature:nth-child(2) {
+    color: var(--teal);
+  }
+
+  .feature:nth-child(3) {
+    color: var(--coral);
+  }
+
+  .start-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 34px;
+    padding: 15px 34px;
+    border-radius: 12px;
+    border: 0;
+    background: var(--ink);
+    color: #fff;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 14px 32px rgba(30, 36, 52, 0.22);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .start-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(30, 36, 52, 0.28);
+  }
+
+  .start-btn:active {
+    transform: scale(0.97);
+  }
+
+  .footer {
+    position: fixed;
+    bottom: 26px;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .footer b {
+    color: var(--ink);
+  }
+
+  @media (max-width: 480px) {
+    .page {
+      padding-top: 40px;
+    }
+
+    h1 {
+      font-size: 34px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+    }
+
+    .features {
+      gap: 8px;
+    }
+  }
 </style>
 </head>
 <body>
-<div class="toast" id="toast"></div>
-<div class="app">
-<header class="top"><h1>错题复盘助手</h1><span id="netState" class="net">检测中</span></header>
-<section class="hero">
-  <h2 class="hello">今天要记录哪道错题？</h2>
-  <button class="cameraBtn" onclick="startCapture()"><b>拍照识别错题</b><span>拍照、上传、保存，一步开始</span></button>
-</section>
-<div class="quick"><button onclick="showPage('book')">错题本</button><button onclick="showPage('review')">AI 复盘</button></div>
-<main>
-<section class="page active" id="home"><div class="card"><div class="row"><div class="stat"><b id="totalCount">0</b><span>错题</span></div><div class="stat"><b id="pendingCount">0</b><span>待复盘</span></div><div class="stat"><b id="weakCount">0</b><span>知识点</span></div></div></div><div class="card"><p class="hint">错题会先保存在本机。没有网络时可以继续记录，有网络时再做 AI 分析和类似题训练。</p></div></section>
-<section class="page" id="capture"><div class="card"><div class="preview" id="imagePreview">点击上方“拍照识别错题”选择图片</div><input id="fileInput" type="file" accept="image/*" capture="environment" hidden><div class="actions"><button class="btn primary" onclick="pickImage()">重新拍照</button><button class="btn" onclick="offlineRecognize()">识别文字</button></div></div><div class="card"><div class="field"><label>题目文字</label><textarea id="questionText" placeholder="识别结果会出现在这里，也可以手动输入"></textarea></div><div class="field"><label>学科</label><select id="subject"><option>数学</option><option>语文</option><option>英语</option><option>物理</option><option>化学</option><option>生物</option><option>历史</option><option>政治</option><option>地理</option></select></div><div class="field"><label>知识点或错因</label><input id="topic" placeholder="例如：函数单调性、审题不清"></div><button class="btn green full" onclick="saveMistake()">保存错题</button></div></section>
-<section class="page" id="book"><div id="mistakeList"></div></section>
-<section class="page" id="review"><div id="reviewList"></div><div class="card" id="analysisBox" style="display:none"><h3>复盘结果</h3><div class="analysis" id="analysisText"></div></div></section>
-</main>
-<nav class="bottom"><button class="nav active" data-page="home">首页</button><button class="nav" data-page="capture">录入</button><button class="nav" data-page="book">错题本</button></nav>
+<canvas id="scene"></canvas>
+
+<div class="page">
+  <div class="badge">
+    <span class="dot"></span>
+    华中科技大学 · Team Future
+  </div>
+  <h1>轻量化<span class="ai">AI</span>高中<br>错题个性化学习助手</h1>
+  <p class="subtitle">拍照归集错题、AI 复盘错因、间隔复习巩固，离线也能持续记录。</p>
+  <div class="features">
+    <span class="feature">拍照录入</span>
+    <span class="feature">AI 复盘</span>
+    <span class="feature">举一反三</span>
+    <span class="feature">间隔复习</span>
+    <span class="feature">离线可用</span>
+  </div>
+  <button class="start-btn" onclick="enterApp()">
+    开始使用
+    <span>→</span>
+  </button>
 </div>
+
+<div class="footer">
+  <b>Team Future</b> · 姜来 · 王子然 · 王冠杨 · 2026
+</div>
+
 <script>
-const STORAGE_KEY='offline-ai-error-collector-v2';let imageData='';let mistakes=[];
-function load(){try{mistakes=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{mistakes=[]}render()}
-function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(mistakes))}
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2000)}
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.nav').forEach(t=>t.classList.toggle('active',t.dataset.page===id));if(id==='book'||id==='review')render();window.scrollTo({top:0,behavior:'smooth'})}
-document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click',()=>showPage(btn.dataset.page)));
-function updateNet(){const el=document.getElementById('netState');el.textContent=navigator.onLine?'在线':'离线可记';el.classList.toggle('online',navigator.onLine)}
-window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
-function startCapture(){showPage('capture');setTimeout(pickImage,120)}
-function pickImage(){document.getElementById('fileInput').click()}
-document.getElementById('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{imageData=reader.result;document.getElementById('imagePreview').innerHTML='<img alt="错题图片" src="'+imageData+'">';offlineRecognize()};reader.readAsDataURL(f);e.target.value=''});
-function offlineRecognize(){const text=document.getElementById('questionText');if(!imageData){toast('请先拍照或上传图片');return}if(text.value.trim()){toast('可以修改后保存');return}text.value='请在这里校正题目文字。下一步可接入 OCR 自动识别。';toast('图片已保存，请校正文字')}
-function guessSubject(q){const rules={数学:/函数|方程|几何|导数|概率|数列|三角|向量|不等式|x|y/i,物理:/速度|加速度|电场|磁场|牛顿|动量|电路|压强/i,化学:/离子|反应|溶液|摩尔|氧化|还原|元素|分子/i,生物:/细胞|基因|遗传|光合|生态|DNA|RNA/i,英语:/grammar|read|write|translate|vocabulary|cloze/i,语文:/文言|阅读|作文|修辞|成语|病句/i};for(const k in rules){if(rules[k].test(q))return k}return document.getElementById('subject').value}
-function saveMistake(){const q=document.getElementById('questionText').value.trim();if(!q){toast('请输入题目文字');return}const item={id:Date.now(),question:q,subject:guessSubject(q),topic:document.getElementById('topic').value.trim()||'待归类',image:imageData,createdAt:new Date().toLocaleString('zh-CN'),analysis:''};mistakes.unshift(item);persist();imageData='';document.getElementById('imagePreview').innerHTML='点击上方“拍照识别错题”选择图片';document.getElementById('questionText').value='';document.getElementById('topic').value='';toast('已保存');showPage('book')}
-function render(){document.getElementById('totalCount').textContent=mistakes.length;document.getElementById('pendingCount').textContent=mistakes.filter(m=>!m.analysis).length;document.getElementById('weakCount').textContent=new Set(mistakes.map(m=>m.topic)).size;const list=document.getElementById('mistakeList');const review=document.getElementById('reviewList');if(!mistakes.length){list.innerHTML='<div class="empty">还没有错题，点上方拍照开始。</div>';review.innerHTML='<div class="empty">保存错题后，就可以在这里复盘。</div>';return}list.innerHTML=mistakes.map(m=>'<article class="item"><h3>'+esc(m.subject)+' · '+esc(m.topic)+'</h3><p>'+esc(short(m.question,90))+'</p><div class="meta">'+m.createdAt+(m.analysis?' · 已复盘':' · 待复盘')+'</div><span class="pill" onclick="analyze('+m.id+')">复盘</span><span class="pill" onclick="removeMistake('+m.id+')">删除</span></article>').join('');review.innerHTML=mistakes.map(m=>'<article class="item"><h3>'+esc(m.subject)+' · '+esc(m.topic)+'</h3><p>'+esc(short(m.question,70))+'</p><button class="btn primary full" onclick="analyze('+m.id+')">生成解析和类似题</button></article>').join('')}
-function analyze(id){const m=mistakes.find(x=>x.id===id);if(!m)return;const similar=makeSimilar(m);const result='错因分析\n重点检查：'+m.topic+'。先找题干条件，再对应公式或方法，最后检查范围、单位和步骤。\n\n解题建议\n1. 圈出已知条件和要求。\n2. 写出对应知识点。\n3. 分步计算，不跳步骤。\n\n类似题\n'+similar.map((s,i)=>(i+1)+'. '+s).join('\n')+'\n\n复习安排\n今天订正，明天做类似题，三天后再回看。';m.analysis=result;persist();document.getElementById('analysisText').textContent=result;document.getElementById('analysisBox').style.display='block';showPage('review');render();toast('已生成复盘')}
-function makeSimilar(m){if(m.subject==='数学')return ['已知函数 f(x)=x^2-2x，求单调区间。','解方程 x^2-5x+6=0。','数列 a(n+1)=a(n)+3，求第 10 项。'];if(m.subject==='物理')return ['已知初速度和加速度，求 5 秒后的速度。','分析斜面上物体受力。','已知电压和电阻，求电流。'];if(m.subject==='英语')return ['根据上下文判断作者观点。','选择正确时态完成句子。','猜测划线单词含义。'];return ['提取题干关键信息并写出思路。','改变一个条件后重新求解。','说明最容易出错的一步。']}
-function removeMistake(id){mistakes=mistakes.filter(m=>m.id!==id);persist();render();toast('已删除')}
-function short(s,n){return s.length>n?s.slice(0,n)+'...':s}function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}updateNet();load();
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const symbols = ['∑', '∫', 'π', '∞', 'f(x)', 'H₂O', 'DNA', '∠', '√', 'Δ', 'e=mc²', 'θ', 'dy/dx', 'CO₂'];
+  const colors = ['#4353c8', '#0f8f84', '#d9623f', '#8b6f2e', '#5470c6'];
+  let particles = [];
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function makeParticle() {
+    return {
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
+      size: 14 + Math.random() * 22,
+      opacity: 0.08 + Math.random() * 0.14,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      symbol: symbols[Math.floor(Math.random() * symbols.length)]
+    };
+  }
+
+  function init() {
+    resize();
+    const count = Math.min(34, Math.floor(canvas.width * canvas.height / 36000));
+    particles = Array.from({ length: count }, makeParticle);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < -40) p.x = canvas.width + 40;
+      if (p.x > canvas.width + 40) p.x = -40;
+      if (p.y < -40) p.y = canvas.height + 40;
+      if (p.y > canvas.height + 40) p.y = -40;
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = p.color;
+      ctx.font = `600 ${p.size}px -apple-system, "Microsoft YaHei", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(p.symbol, p.x, p.y);
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', init);
+  init();
+  draw();
+
+  function enterApp() {
+    window.location.href = 'app.html';
+  }
 </script>
 </body>
 </html>

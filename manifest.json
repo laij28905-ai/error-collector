@@ -1,24 +1,65 @@
 {
-  "name": "错题复盘助手 - 高中生离线错题采集与AI复盘系统",
-  "short_name": "错题复盘",
-  "description": "面向高中学生的离线错题记录、联网AI分析、举一反三训练工具。",
-  "start_url": "app.html",
+  "name": "轻量化AI高中错题个性化学习助手",
+  "short_name": "错题助手",
+  "description": "拍照归集错题、AI复盘错因、举一反三、间隔复习，离线优先的个性化学习工具。",
+  "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#101827",
+  "shortcuts": [
+    {
+      "name": "拍照录入",
+      "short_name": "录入",
+      "description": "快速进入拍照录入",
+      "url": "./app.html#capture",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%234353c8'/%3E%3Ctext x='96' y='126' font-size='76' text-anchor='middle' fill='white'%3E%E6%8B%8D%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "错题本",
+      "short_name": "错题本",
+      "description": "查看全部错题",
+      "url": "./app.html#book",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%230f9b8e'/%3E%3Ctext x='96' y='126' font-size='76' text-anchor='middle' fill='white'%3E%E6%9C%AC%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "间隔复习",
+      "short_name": "复习",
+      "description": "开始今天的复习",
+      "url": "./app.html#review",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%231f9d55'/%3E%3Ctext x='96' y='126' font-size='76' text-anchor='middle' fill='white'%3E%E5%A4%8D%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "background_color": "#f7f4ee",
+  "theme_color": "#f3f5f9",
   "categories": ["education", "productivity"],
   "lang": "zh-CN",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23101827'/%3E%3Ctext x='96' y='123' font-size='88' text-anchor='middle'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%234353c8'/%3E%3Ctext x='96' y='124' font-size='92' text-anchor='middle' fill='white'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23101827'/%3E%3Ctext x='256' y='326' font-size='230' text-anchor='middle'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%234353c8'/%3E%3Ctext x='256' y='330' font-size='240' text-anchor='middle' fill='white'%3E%E9%94%99%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
