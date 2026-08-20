@@ -537,6 +537,39 @@ function getParentReportData() {
   return { total, mastered, due, weekNew, weekReviewed, weak };
 }
 
+function getWeeklyReportText() {
+  const d = getParentReportData();
+  const now = Date.now();
+  const dueItems = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= now)).slice(0, 5);
+  const weakText = d.weak.length ? d.weak.map(([name]) => name).join('、') : '暂无';
+  const dueText = dueItems.length ? dueItems.map(e => `· ${e.subject} ${e.topic || '未分类'}`).join('\n') : '无';
+  return `【错题周报】${new Date().toLocaleDateString('zh-CN')}
+错题总数：${d.total}
+已掌握：${d.mastered}
+待复习：${d.due}
+本周新增：${d.weekNew}
+本周复习：${d.weekReviewed}
+薄弱知识点：${weakText}
+今日待复习：
+${dueText}`;
+}
+
+function copyWeeklyReportText() {
+  if (allErrors.length === 0) {
+    showToast('还没有数据可复制');
+    return;
+  }
+  const text = getWeeklyReportText();
+  const done = () => showToast('周报文本已复制');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      window.prompt('复制周报文本', text);
+    });
+  } else {
+    window.prompt('复制周报文本', text);
+  }
+}
+
 function copyParentReportLink() {
   if (allErrors.length === 0) {
     showToast('还没有数据可分享');
