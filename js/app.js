@@ -1430,6 +1430,24 @@ async function deleteError(id) {
 
 /* ===================== AI 复盘 ===================== */
 
+async function buildAnalysisForError(e) {
+  const configured = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
+  let result = null;
+  let usedAi = false;
+  if (configured) {
+    try {
+      result = await callAi(e);
+      usedAi = true;
+    } catch (err) {
+      console.warn('AI call failed', err);
+    }
+  }
+  if (!result) result = localAnalysis(e);
+  result.source = usedAi ? 'ai' : 'template';
+  result.generatedAt = new Date().toISOString();
+  return { result, usedAi, configured };
+}
+
 async function generateAnalysis(id, force) {
   const e = findError(id);
   if (!e) return;
@@ -1438,28 +1456,43 @@ async function generateAnalysis(id, force) {
     return;
   }
   showProcessing('AI 复盘生成中', '正在分析错因并生成练习建议');
-  let result = null;
-  let aiFailed = false;
-  try {
-    if (settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint))) {
-      result = await callAi(e);
-    }
-  } catch (err) {
-    console.warn('AI call failed', err);
-    aiFailed = true;
-  }
-  if (!result) {
-    result = localAnalysis(e);
-    showToast(aiFailed ? 'AI 调用失败，已使用离线模板' : '未配置 AI，已使用离线模板');
-  }
-  result.source = result.source || (aiFailed ? 'template' : 'ai');
-  result.generatedAt = new Date().toISOString();
+  const { result, usedAi, configured } = await buildAnalysisForError(e);
+  if (configured && !usedAi) showToast('AI 调用失败，已使用离线模板');
+  if (!configured) showToast('未配置 AI，已使用离线模板');
   await storeUpdate(id, { analysis: result, updatedAt: new Date().toISOString() });
   e.analysis = result;
   hideProcessing();
   updateHome();
   renderErrorList();
   openDetail(id);
+}
+
+async function batchGenerateAnalysis() {
+  if (selectedIds.size === 0) {
+    showToast('请先选择错题');
+    return;
+  }
+  if (!confirm(`为选中的 ${selectedIds.size} 道错题生成复盘？`)) return;
+  const ids = Array.from(selectedIds);
+  selectedIds.clear();
+  batchMode = false;
+  const actions = document.getElementById('batchActions');
+  if (actions) actions.classList.add('hidden');
+  renderErrorList();
+  showProcessing('批量 AI 复盘', `0/${ids.length}`);
+  for (let i = 0; i < ids.length; i++) {
+    const e = findError(ids[i]);
+    if (!e) continue;
+    updateProcessing('批量 AI 复盘', `${i + 1}/${ids.length}`);
+    const { result } = await buildAnalysisForError(e);
+    await storeUpdate(e.id, { analysis: result, updatedAt: new Date().toISOString() });
+    e.analysis = result;
+  }
+  hideProcessing();
+  updateHome();
+  updateNavBadge();
+  renderErrorList();
+  showToast('批量复盘完成');
 }
 
 async function callAi(e) {
