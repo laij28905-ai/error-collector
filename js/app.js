@@ -1478,6 +1478,9 @@ function openDetail(id) {
       <div class="modal-content-block">
         <div class="section-title"><span>最近自测作答</span></div>
         <div class="modal-text">${escapeHtml(e.lastAttempt)}</div>
+        ${e.attemptFeedback
+          ? `<div class="analysis-block" style="margin-top:8px">${escapeHtml(e.attemptFeedback.text)}</div>`
+          : `<button class="btn teal full" style="margin-top:10px" onclick="gradeAttempt(${e.id})">AI 批改</button>`}
       </div>
     ` : ''}
     ${analysisBlock}
@@ -1595,6 +1598,70 @@ async function batchGenerateAnalysis() {
   updateNavBadge();
   renderErrorList();
   showToast('批量复盘完成');
+}
+
+async function gradeAttempt(id) {
+  const e = findError(id);
+  if (!e) return;
+  if (!e.lastAttempt) {
+    showToast('还没有自测作答');
+    return;
+  }
+  showProcessing('AI 批改中', '正在对照标准答案');
+  let feedback = null;
+  let usedAi = false;
+  const configured = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
+  if (configured) {
+    try {
+      const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
+      const headers = { 'Content-Type': 'application/json' };
+      if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
+      const res = await fetch(base + '/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: settings.aiModel || DEFAULT_SETTINGS.aiModel,
+          temperature: 0.2,
+          messages: [
+            {
+              role: 'system',
+              content: '你是高中错题批改老师。根据题目、标准答案和学生作答，用中文给出简短批改意见：先判断是否正确，再指出关键偏差和修改建议。'
+            },
+            {
+              role: 'user',
+              content: `题目：${e.text}\n标准答案：${e.answer || '未记录'}\n学生作答：${e.lastAttempt}`
+            }
+          ]
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        feedback = String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '').trim();
+        usedAi = !!feedback;
+      }
+    } catch (err) {
+      console.warn('AI grading failed', err);
+    }
+  }
+  if (!feedback) {
+    const a = String(e.answer || '').trim();
+    const t = String(e.lastAttempt || '').trim();
+    if (a && t && (a.includes(t) || t.includes(a))) {
+      feedback = '你的作答与标准答案基本一致，继续保持。';
+    } else if (t) {
+      feedback = '已记录你的作答。建议对照标准答案逐条检查步骤，标出遗漏或偏差的地方。';
+    } else {
+      feedback = '未检测到有效作答，建议先写下思路再对照答案。';
+    }
+  }
+  e.attemptFeedback = {
+    text: feedback,
+    source: usedAi ? 'ai' : 'template',
+    gradedAt: new Date().toISOString()
+  };
+  await storeUpdate(id, { attemptFeedback: e.attemptFeedback, updatedAt: new Date().toISOString() });
+  hideProcessing();
+  openDetail(id);
 }
 
 async function callAi(e) {
