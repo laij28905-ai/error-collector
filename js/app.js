@@ -50,6 +50,7 @@ const LS_ERRORS = 'tf-errors-v2';
 const LS_STUDY_DAYS = 'tf-study-days-v2';
 const LS_DAILY = 'tf-daily-review-v2';
 const LS_BANK = 'tf-question-bank-v2';
+const LS_CLASS = 'tf-class-data-v2';
 
 let db = null;
 let useLocalFallback = false;
@@ -213,6 +214,7 @@ function bindEvents() {
   document.getElementById('fileInput').addEventListener('change', onFileSelected);
   document.getElementById('importInput').addEventListener('change', onImportSelected);
   document.getElementById('bankInput').addEventListener('change', onBankSelected);
+  document.getElementById('classInput').addEventListener('change', onClassSelected);
   window.addEventListener('paste', (e) => {
     if (currentPage !== 'capture') return;
     handleClipboardItems(e.clipboardData && e.clipboardData.items);
@@ -2459,6 +2461,153 @@ async function pullBankFromCloud() {
     hideProcessing();
     showToast('拉取失败：' + err.message);
   }
+}
+
+function getClassData() {
+  try {
+    const obj = JSON.parse(localStorage.getItem(LS_CLASS) || '{}');
+    return obj && typeof obj === 'object' ? obj : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveClassData(obj) {
+  localStorage.setItem(LS_CLASS, JSON.stringify(obj));
+}
+
+function importStudentData() {
+  document.getElementById('classInput').click();
+}
+
+async function onClassSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const name = prompt('请输入学生姓名');
+    if (!name || !name.trim()) {
+      showToast('已取消导入');
+      return;
+    }
+    const parsed = JSON.parse(await file.text());
+    const items = Array.isArray(parsed) ? parsed : parsed.errors;
+    if (!Array.isArray(items)) throw new Error('学生数据格式不正确');
+    const cleaned = items.filter(x => x && x.text).map(x => Object.assign({}, x));
+    const obj = getClassData();
+    obj[name.trim()] = cleaned;
+    saveClassData(obj);
+    showToast(`已导入 ${name.trim()} 的 ${cleaned.length} 道错题`);
+  } catch (err) {
+    showToast('学生数据导入失败：' + err.message);
+  }
+  event.target.value = '';
+}
+
+function getClassSummaryData() {
+  const obj = getClassData();
+  const students = Object.entries(obj)
+    .filter(([name, arr]) => name && Array.isArray(arr) && arr.length)
+    .map(([name, arr]) => {
+      const mastered = arr.filter(e => e.status === 'mastered').length;
+      return { name, total: arr.length, mastered, rate: Math.round(mastered / arr.length * 100) };
+    });
+  const allErrors = Object.values(obj).flat().filter(e => e && e.text);
+  const total = allErrors.length;
+  const mastered = allErrors.filter(e => e.status === 'mastered').length;
+  const counts = {};
+  allErrors.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const weakTopics = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return { students, total, mastered, rate: total ? Math.round(mastered / total * 100) : 0, weakTopics };
+}
+
+function openClassSummary() {
+  const d = getClassSummaryData();
+  if (d.students.length === 0) {
+    openModal('班级汇总', '<div class="empty-state"><div class="es-icon">🏫</div><div class="es-title">还没有学生数据</div><div class="es-desc">先导入学生导出的错题数据</div></div>');
+    return;
+  }
+  const studentRows = d.students.map(s => `
+    <div class="report-row">
+      <span>${escapeHtml(s.name)}</span>
+      <div class="weak-bar"><i style="width:${s.rate}%"></i></div>
+      <span class="weak-count">${s.mastered}/${s.total}</span>
+    </div>
+  `).join('');
+  const weakRows = d.weakTopics.map(([name, count]) => `
+    <div class="report-row">
+      <span>${escapeHtml(name)}</span>
+      <div class="weak-bar"><i style="width:${Math.min(100, count * 10)}%"></i></div>
+      <span class="weak-count">${count}题</span>
+    </div>
+  `).join('');
+  const html = `
+    <div class="report-block">
+      <div class="report-row"><span>学生人数</span><div class="weak-bar"><i style="width:${Math.min(100, d.students.length * 10)}%"></i></div><span class="weak-count">${d.students.length}人</span></div>
+      <div class="report-row"><span>班级掌握率</span><div class="weak-bar"><i style="width:${d.rate}%"></i></div><span class="weak-count">${d.rate}%</span></div>
+    </div>
+    <div class="section-title" style="margin-top:16px"><span>学生掌握情况</span></div>
+    <div class="report-block">${studentRows}</div>
+    <div class="section-title" style="margin-top:16px"><span>班级薄弱知识点</span></div>
+    <div class="report-block">${weakRows}</div>
+    <button class="btn primary full" style="margin-top:14px" onclick="exportClassSummary()">导出班级汇总</button>
+  `;
+  openModal('班级汇总', html);
+}
+
+function exportClassSummary() {
+  const d = getClassSummaryData();
+  if (d.students.length === 0) {
+    showToast('还没有学生数据可导出');
+    return;
+  }
+  const studentRows = d.students.map(s => `
+    <tr><td>${escapeHtml(s.name)}</td><td>${s.total}</td><td>${s.mastered}</td><td>${s.rate}%</td></tr>
+  `).join('');
+  const weakRows = d.weakTopics.map(([name, count]) => `<li>${escapeHtml(name)}：${count} 题</li>`).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>班级汇总</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 820px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #e2e7ef; padding: 9px 12px; text-align: left; }
+  th { background: #f3f5f9; }
+  ul { padding-left: 20px; line-height: 1.8; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>班级错题汇总</h1>
+<div class="sub">Team Future · 学生 ${d.students.length} 人 · 错题 ${d.total} 道 · 掌握率 ${d.rate}% · ${new Date().toLocaleDateString('zh-CN')}</div>
+<table>
+  <thead><tr><th>学生</th><th>错题</th><th>已掌握</th><th>掌握率</th></tr></thead>
+  <tbody>${studentRows}</tbody>
+</table>
+<h2>班级薄弱知识点</h2>
+<ul>${weakRows}</ul>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `班级汇总_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('班级汇总已导出');
+}
+
+function clearClassData() {
+  if (!confirm('确定清空所有班级数据吗？')) return;
+  localStorage.removeItem(LS_CLASS);
+  showToast('班级数据已清空');
 }
 
 async function onBankSelected(event) {

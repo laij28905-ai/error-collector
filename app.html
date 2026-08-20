@@ -296,6 +296,18 @@
             <span class="mi-icon">&#128200;</span>
             <span>学情看板</span>
           </button>
+          <button class="menu-item" onclick="importStudentData()">
+            <span class="mi-icon">&#128101;</span>
+            <span>导入学生数据</span>
+          </button>
+          <button class="menu-item" onclick="openClassSummary()">
+            <span class="mi-icon">&#127891;</span>
+            <span>班级汇总</span>
+          </button>
+          <button class="menu-item danger" onclick="clearClassData()">
+            <span class="mi-icon">&#128465;</span>
+            <span>清空班级数据</span>
+          </button>
           <button class="menu-item danger" onclick="clearAllData()">
             <span class="mi-icon">&#128465;</span>
             <span>清空数据</span>
@@ -308,7 +320,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.18 · Team Future</span>
+            <span>v3.19 · Team Future</span>
           </div>
         </div>
       </div>
@@ -353,6 +365,7 @@
 <input id="fileInput" type="file" accept="image/*" hidden>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
 <input id="bankInput" type="file" accept=".json,application/json" hidden>
+<input id="classInput" type="file" accept=".json,application/json" hidden>
 
 <script src="vendor/dexie.min.js"></script>
 <script src="js/app.js"></script>
