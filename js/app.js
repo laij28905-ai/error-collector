@@ -2538,16 +2538,32 @@ async function onClassSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
   try {
+    const parsed = JSON.parse(await file.text());
+    const obj = getClassData();
+    if (Array.isArray(parsed.students) && parsed.students.length) {
+      let imported = 0;
+      for (const s of parsed.students) {
+        const name = s && s.name ? String(s.name).trim() : '';
+        const arr = Array.isArray(s && s.errors) ? s.errors : [];
+        const cleaned = arr.filter(x => x && x.text).map(x => Object.assign({}, x));
+        if (name && cleaned.length) {
+          obj[name] = cleaned;
+          imported++;
+        }
+      }
+      if (imported === 0) throw new Error('没有找到有效的学生数据');
+      saveClassData(obj);
+      showToast(`已一键导入 ${imported} 名学生`);
+      return;
+    }
     const name = prompt('请输入学生姓名');
     if (!name || !name.trim()) {
       showToast('已取消导入');
       return;
     }
-    const parsed = JSON.parse(await file.text());
     const items = Array.isArray(parsed) ? parsed : parsed.errors;
     if (!Array.isArray(items)) throw new Error('学生数据格式不正确');
     const cleaned = items.filter(x => x && x.text).map(x => Object.assign({}, x));
-    const obj = getClassData();
     obj[name.trim()] = cleaned;
     saveClassData(obj);
     showToast(`已导入 ${name.trim()} 的 ${cleaned.length} 道错题`);
