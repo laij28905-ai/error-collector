@@ -1438,3 +1438,26 @@ textarea {
     width: 88px;
   }
 }
+
+body[data-theme="dark"] {
+  --bg: #12161f;
+  --surface: #1a2130;
+  --surface-2: #232c3e;
+  --text: #eef1f6;
+  --muted: #98a3b8;
+  --line: #2c3648;
+  --primary-soft: #26335e;
+  --teal-soft: #173e3a;
+  --green-soft: #16352a;
+  --amber-soft: #3a2f16;
+  --red-soft: #3a2020;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+body[data-theme="dark"] .app-header {
+  background: rgba(18, 22, 31, 0.94);
+}
+
+body[data-theme="dark"] .app-nav {
+  background: rgba(26, 33, 48, 0.96);
+}

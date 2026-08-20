@@ -41,7 +41,8 @@ const DEFAULT_SETTINGS = {
   autoSync: false,
   dailyGoal: 3,
   bankGistId: '',
-  classGistId: ''
+  classGistId: '',
+  darkMode: false
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -189,6 +190,7 @@ async function loadErrors() {
 document.addEventListener('DOMContentLoaded', async () => {
   await initStorage();
   loadSettings();
+  applyTheme();
   await loadErrors();
   fillSettingsForm();
   renderSubjectChips();
@@ -2031,6 +2033,7 @@ function saveSettings() {
   settings.useAiOcr = document.getElementById('useAiOcr').checked;
   settings.ocrModel = document.getElementById('ocrModel').value.trim();
   settings.openCaptureOnLaunch = document.getElementById('openCaptureOnLaunch').checked;
+  settings.darkMode = document.getElementById('darkMode').checked;
   settings.syncToken = document.getElementById('syncToken').value.trim();
   settings.syncGistId = document.getElementById('syncGistId').value.trim();
   settings.autoSync = document.getElementById('autoSync').checked;
@@ -2038,6 +2041,7 @@ function saveSettings() {
   settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.dailyGoal = Math.max(0, Math.min(20, Number(document.getElementById('dailyGoal').value) || 0));
   persistSettings();
+  applyTheme();
   showToast('设置已保存');
 }
 
@@ -2048,12 +2052,17 @@ function fillSettingsForm() {
   document.getElementById('useAiOcr').checked = !!settings.useAiOcr;
   document.getElementById('ocrModel').value = settings.ocrModel || '';
   document.getElementById('openCaptureOnLaunch').checked = !!settings.openCaptureOnLaunch;
+  document.getElementById('darkMode').checked = !!settings.darkMode;
   document.getElementById('syncToken').value = settings.syncToken || '';
   document.getElementById('syncGistId').value = settings.syncGistId || '';
   document.getElementById('autoSync').checked = !!settings.autoSync;
   document.getElementById('bankGistId').value = settings.bankGistId || '';
   document.getElementById('classGistId').value = settings.classGistId || '';
   document.getElementById('dailyGoal').value = settings.dailyGoal || 0;
+}
+
+function applyTheme() {
+  document.body.setAttribute('data-theme', settings.darkMode ? 'dark' : 'light');
 }
 
 function readSyncSettings() {
