@@ -276,7 +276,19 @@ function navigateTo(page) {
 }
 
 function applyInitialHash() {
-  const target = location.hash.replace('#', '');
+  const raw = location.hash.replace('#', '');
+  if (raw.startsWith('bank-gist-')) {
+    const gid = raw.slice('bank-gist-'.length);
+    if (gid) {
+      settings.bankGistId = gid;
+      persistSettings();
+      const el = document.getElementById('bankGistId');
+      if (el) el.value = gid;
+      showToast('已识别题库 Gist ID，可到“我的 → 云同步”拉取');
+    }
+    return;
+  }
+  const target = raw;
   if (['home', 'capture', 'book', 'review', 'profile'].includes(target) && target !== currentPage) {
     return navigateTo(target);
   }
@@ -2460,6 +2472,23 @@ async function pullBankFromCloud() {
   } catch (err) {
     hideProcessing();
     showToast('拉取失败：' + err.message);
+  }
+}
+
+function copyBankShareLink() {
+  const gid = document.getElementById('bankGistId').value.trim() || settings.bankGistId;
+  if (!gid) {
+    showToast('请先上传题库并获取 Gist ID');
+    return;
+  }
+  const link = `${location.origin}${location.pathname}#bank-gist-${encodeURIComponent(gid)}`;
+  const done = () => showToast('题库分享链接已复制');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done).catch(() => {
+      window.prompt('复制题库分享链接', link);
+    });
+  } else {
+    window.prompt('复制题库分享链接', link);
   }
 }
 
