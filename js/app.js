@@ -1169,6 +1169,12 @@ function openDetail(id) {
         <div class="modal-text">${escapeHtml(e.answer)}</div>
       </div>
     ` : ''}
+    ${e.lastAttempt ? `
+      <div class="modal-content-block">
+        <div class="section-title"><span>最近自测作答</span></div>
+        <div class="modal-text">${escapeHtml(e.lastAttempt)}</div>
+      </div>
+    ` : ''}
     ${analysisBlock}
     <div class="modal-actions">
       <button class="btn outline" onclick="openEditModal(${e.id})">编辑</button>
@@ -1372,6 +1378,8 @@ function showReviewItem() {
   document.getElementById('reviewSubject').className = 'subject-pill ' + subjectClass(item.subject);
   document.getElementById('reviewMeta').textContent = `${item.topic || '未分类'} · ${item.cause || '未标注错因'}`;
   document.getElementById('reviewQuestion').textContent = item.text;
+  const draftEl = document.getElementById('reviewDraft');
+  if (draftEl) draftEl.value = '';
   document.getElementById('reviewAnswerText').textContent = item.answer || '未记录解析';
   document.getElementById('reviewAnswer').classList.add('hidden');
   reviewAnswerShown = false;
@@ -1397,6 +1405,7 @@ function toggleReviewAnswer() {
 async function rateReview(grade) {
   const item = reviewQueue[reviewIndex];
   if (!item) return;
+  const draft = document.getElementById('reviewDraft').value.trim();
   const now = new Date();
   let interval = 1;
 
@@ -1413,6 +1422,7 @@ async function rateReview(grade) {
   }
 
   item.lastReviewedAt = now.toISOString();
+  item.lastAttempt = draft;
   if (item.status === 'mastered') {
     item.nextReviewAt = null;
   } else {
@@ -1424,6 +1434,7 @@ async function rateReview(grade) {
     reviewCount: item.reviewCount,
     nextReviewAt: item.nextReviewAt,
     lastReviewedAt: item.lastReviewedAt,
+    lastAttempt: draft,
     updatedAt: now.toISOString()
   });
   recordStudyDay();
@@ -1623,6 +1634,7 @@ function exportPrintable() {
     const analysis = e.analysis
       ? `<h3>AI 复盘</h3><p>${escapeHtml(e.analysis.analysis || '')}</p><h3>解题步骤</h3><p>${escapeHtml(e.analysis.solution || '')}</p>`
       : '';
+    const attempt = e.lastAttempt ? `<h3>最近自测作答</h3><p>${escapeHtml(e.lastAttempt)}</p>` : '';
     return `
       <section class="card">
         <div class="meta">${i + 1}. ${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')} · 错因：${escapeHtml(e.cause || '未标注')} · ${dateLabel(e.createdAt)}</div>
@@ -1630,6 +1642,7 @@ function exportPrintable() {
         <p>${escapeHtml(e.text)}</p>
         <h3>答案 / 解析</h3>
         <p>${escapeHtml(e.answer || '未记录答案')}</p>
+        ${attempt}
         ${analysis}
         ${similar}
       </section>

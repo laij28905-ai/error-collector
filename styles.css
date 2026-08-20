@@ -901,6 +901,17 @@ textarea {
   white-space: pre-wrap;
 }
 
+.review-draft {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.review-draft textarea {
+  min-height: 72px;
+  font-size: 13px;
+}
+
 .review-answer {
   margin-top: 14px;
   padding-top: 12px;
