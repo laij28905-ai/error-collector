@@ -2698,8 +2698,71 @@ function openStudentDetail(name) {
     <ul class="plan-list">${weakRows}</ul>
     <div class="section-title" style="margin-top:16px"><span>最近错题</span></div>
     <div class="report-block">${errorRows}</div>
+    <button class="btn primary full" style="margin-top:14px" onclick="exportStudentReport(this.dataset.name)" data-name="${escapeHtml(name)}">导出学生报告</button>
   `;
   openModal(`学生详情 · ${name}`, html);
+}
+
+function exportStudentReport(name) {
+  const arr = getClassData()[name] || [];
+  if (!arr.length) {
+    showToast('没有找到该学生的数据');
+    return;
+  }
+  const mastered = arr.filter(e => e.status === 'mastered').length;
+  const rate = Math.round(mastered / arr.length * 100);
+  const counts = {};
+  arr.forEach(e => {
+    const key = e.topic || '未分类';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const weakRows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([topic, count]) => `<li>${escapeHtml(topic)}：${count} 题</li>`).join('');
+  const errorRows = arr.map((e, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(e.subject)}</td>
+      <td>${escapeHtml(e.topic || '未分类')}</td>
+      <td>${escapeHtml(e.cause || '未标注')}</td>
+      <td>${e.status === 'mastered' ? '已掌握' : '待复习'}</td>
+    </tr>
+  `).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学生错题报告</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 820px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #e2e7ef; padding: 9px 12px; text-align: left; }
+  th { background: #f3f5f9; }
+  ul { padding-left: 20px; line-height: 1.8; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>学生错题报告</h1>
+<div class="sub">${escapeHtml(name)} · 错题 ${arr.length} 道 · 已掌握 ${mastered} 道 · 掌握率 ${rate}% · ${new Date().toLocaleDateString('zh-CN')}</div>
+<h2>薄弱知识点</h2>
+<ul>${weakRows}</ul>
+<h2>错题明细</h2>
+<table>
+  <thead><tr><th>#</th><th>科目</th><th>知识点</th><th>错因</th><th>状态</th></tr></thead>
+  <tbody>${errorRows}</tbody>
+</table>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}_错题报告_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('学生报告已导出');
 }
 
 function exportClassSummary() {
