@@ -35,7 +35,10 @@ const DEFAULT_SETTINGS = {
   ocrLang: 'chi_sim+eng',
   openCaptureOnLaunch: false,
   useAiOcr: false,
-  ocrModel: 'gpt-4o-mini'
+  ocrModel: 'gpt-4o-mini',
+  syncToken: '',
+  syncGistId: '',
+  autoSync: false
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -185,6 +188,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateNavBadge();
   const dueNow = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= Date.now())).length;
   if (dueNow > 0) setTimeout(() => showToast(`今天还有 ${dueNow} 道错题待复习`), 700);
+  if (settings.autoSync && settings.syncToken && settings.syncGistId) {
+    setTimeout(() => syncPull(true), 900);
+  }
   bindEvents();
   registerSW();
   updateNet();
@@ -1453,6 +1459,9 @@ function saveSettings() {
   settings.useAiOcr = document.getElementById('useAiOcr').checked;
   settings.ocrModel = document.getElementById('ocrModel').value.trim();
   settings.openCaptureOnLaunch = document.getElementById('openCaptureOnLaunch').checked;
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  settings.syncGistId = document.getElementById('syncGistId').value.trim();
+  settings.autoSync = document.getElementById('autoSync').checked;
   persistSettings();
   showToast('设置已保存');
 }
@@ -1464,6 +1473,116 @@ function fillSettingsForm() {
   document.getElementById('useAiOcr').checked = !!settings.useAiOcr;
   document.getElementById('ocrModel').value = settings.ocrModel || '';
   document.getElementById('openCaptureOnLaunch').checked = !!settings.openCaptureOnLaunch;
+  document.getElementById('syncToken').value = settings.syncToken || '';
+  document.getElementById('syncGistId').value = settings.syncGistId || '';
+  document.getElementById('autoSync').checked = !!settings.autoSync;
+}
+
+function readSyncSettings() {
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  settings.syncGistId = document.getElementById('syncGistId').value.trim();
+  settings.autoSync = document.getElementById('autoSync').checked;
+  persistSettings();
+}
+
+async function syncUpload() {
+  readSyncSettings();
+  if (!settings.syncToken) {
+    showToast('请先填写 GitHub Token');
+    return;
+  }
+  if (allErrors.length === 0 && !settings.syncGistId) {
+    showToast('没有数据可上传');
+    return;
+  }
+  showProcessing('上传中', '正在同步到 GitHub Gist');
+  try {
+    const payload = {
+      app: 'TeamFutureErrorCollector',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      errors: allErrors
+    };
+    const content = JSON.stringify(payload, null, 2);
+    let gist;
+    if (settings.syncGistId) {
+      gist = await gistApi('https://api.github.com/gists/' + settings.syncGistId, 'PATCH', {
+        files: { 'error-collector-backup.json': { content } }
+      });
+    } else {
+      gist = await gistApi('https://api.github.com/gists', 'POST', {
+        description: '错题助手云备份',
+        public: false,
+        files: { 'error-collector-backup.json': { content } }
+      });
+      settings.syncGistId = gist.id;
+      persistSettings();
+      document.getElementById('syncGistId').value = gist.id;
+    }
+    hideProcessing();
+    showToast('已上传到云端');
+    return gist && gist.id;
+  } catch (err) {
+    hideProcessing();
+    showToast('上传失败：' + err.message);
+  }
+}
+
+async function syncPull(isAuto) {
+  readSyncSettings();
+  if (!settings.syncToken || !settings.syncGistId) {
+    if (!isAuto) showToast('请先填写 GitHub Token 和 Gist ID');
+    return;
+  }
+  if (!isAuto) showProcessing('恢复中', '正在从云端读取数据');
+  try {
+    const gist = await gistApi('https://api.github.com/gists/' + settings.syncGistId, 'GET');
+    const file = gist.files && gist.files['error-collector-backup.json'];
+    if (!file || !file.content) throw new Error('云端没有找到备份数据');
+    const parsed = JSON.parse(file.content);
+    const items = Array.isArray(parsed) ? parsed : parsed.errors;
+    if (!Array.isArray(items)) throw new Error('云端数据格式不正确');
+    const cleaned = items.filter(x => x && x.text).map(x => Object.assign({}, x));
+
+    if (isAuto) {
+      await storeClear();
+      await storeBulkAdd(cleaned);
+    } else {
+      const merge = confirm('选择“确定”合并云端数据，选择“取消”替换本地数据。');
+      if (merge) {
+        cleaned.forEach(x => delete x.id);
+      } else {
+        await storeClear();
+      }
+      await storeBulkAdd(cleaned);
+    }
+    await loadErrors();
+    updateHome();
+    updateNavBadge();
+    renderErrorList();
+    if (!isAuto) hideProcessing();
+    showToast(`已恢复 ${cleaned.length} 条错题`);
+  } catch (err) {
+    if (!isAuto) hideProcessing();
+    if (!isAuto) showToast('恢复失败：' + err.message);
+    console.warn('sync pull failed', err);
+  }
+}
+
+async function gistApi(url, method, body) {
+  const headers = {
+    Authorization: 'Bearer ' + settings.syncToken,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'codex'
+  };
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
 
 /* ===================== 数据管理 ===================== */

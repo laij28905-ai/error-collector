@@ -190,6 +190,22 @@
       </div>
 
       <div class="section-block">
+        <div class="section-title">云同步</div>
+        <div class="form-card">
+          <label class="field-label" for="syncToken">GitHub Token</label>
+          <input id="syncToken" type="password" placeholder="用于同步私人 Gist">
+          <label class="field-label" for="syncGistId">Gist ID（留空自动创建）</label>
+          <input id="syncGistId" type="text" placeholder="首次上传后自动生成">
+          <label class="switch-row">
+            <span>启动时自动从云端恢复</span>
+            <input id="autoSync" type="checkbox">
+          </label>
+          <button class="btn primary full" onclick="syncUpload()">上传到云端</button>
+          <button class="btn outline full" onclick="syncPull(false)">从云端恢复</button>
+        </div>
+      </div>
+
+      <div class="section-block">
         <div class="section-title">AI 服务</div>
         <div class="form-card">
           <label class="field-label" for="aiEndpoint">接口地址</label>
@@ -235,7 +251,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.2 · Team Future</span>
+            <span>v3.3 · Team Future</span>
           </div>
         </div>
       </div>
