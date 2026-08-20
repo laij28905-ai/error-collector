@@ -39,7 +39,8 @@ const DEFAULT_SETTINGS = {
   syncToken: '',
   syncGistId: '',
   autoSync: false,
-  dailyGoal: 3
+  dailyGoal: 3,
+  bankGistId: ''
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -1722,6 +1723,7 @@ function saveSettings() {
   settings.syncToken = document.getElementById('syncToken').value.trim();
   settings.syncGistId = document.getElementById('syncGistId').value.trim();
   settings.autoSync = document.getElementById('autoSync').checked;
+  settings.bankGistId = document.getElementById('bankGistId').value.trim();
   settings.dailyGoal = Math.max(0, Math.min(20, Number(document.getElementById('dailyGoal').value) || 0));
   persistSettings();
   showToast('设置已保存');
@@ -1737,6 +1739,7 @@ function fillSettingsForm() {
   document.getElementById('syncToken').value = settings.syncToken || '';
   document.getElementById('syncGistId').value = settings.syncGistId || '';
   document.getElementById('autoSync').checked = !!settings.autoSync;
+  document.getElementById('bankGistId').value = settings.bankGistId || '';
   document.getElementById('dailyGoal').value = settings.dailyGoal || 0;
 }
 
@@ -2057,6 +2060,21 @@ function getQuestionBank() {
   }
 }
 
+function mergeBankItems(cleaned) {
+  const existing = getQuestionBank();
+  const seen = new Set(existing.map(q => String(q.question).trim()));
+  let added = 0;
+  for (const q of cleaned) {
+    const key = String(q.question).trim();
+    if (!seen.has(key)) {
+      existing.push(q);
+      seen.add(key);
+      added++;
+    }
+  }
+  return { existing, added };
+}
+
 function importQuestionBank() {
   document.getElementById('bankInput').click();
 }
@@ -2083,6 +2101,82 @@ function clearQuestionBank() {
   showToast('题库已清空');
 }
 
+async function uploadBankToCloud() {
+  settings.bankGistId = document.getElementById('bankGistId').value.trim();
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  persistSettings();
+  const bank = getQuestionBank();
+  if (bank.length === 0) {
+    showToast('题库为空，先导入题目');
+    return;
+  }
+  if (!settings.syncToken) {
+    showToast('请先填写 GitHub Token');
+    return;
+  }
+  showProcessing('上传题库', '正在同步到 Gist');
+  try {
+    const content = JSON.stringify(bank, null, 2);
+    let gist;
+    if (settings.bankGistId) {
+      gist = await gistApi('https://api.github.com/gists/' + settings.bankGistId, 'PATCH', {
+        files: { 'question-bank.json': { content } }
+      });
+    } else {
+      gist = await gistApi('https://api.github.com/gists', 'POST', {
+        description: '错题助手班级题库',
+        public: false,
+        files: { 'question-bank.json': { content } }
+      });
+      settings.bankGistId = gist.id;
+      persistSettings();
+      document.getElementById('bankGistId').value = gist.id;
+    }
+    hideProcessing();
+    showToast('题库已上传到云端');
+  } catch (err) {
+    hideProcessing();
+    showToast('上传失败：' + err.message);
+  }
+}
+
+async function pullBankFromCloud() {
+  settings.bankGistId = document.getElementById('bankGistId').value.trim();
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  persistSettings();
+  if (!settings.bankGistId) {
+    showToast('请先填写题库 Gist ID');
+    return;
+  }
+  showProcessing('拉取题库', '正在从云端读取');
+  try {
+    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'codex' };
+    if (settings.syncToken) headers['Authorization'] = 'Bearer ' + settings.syncToken;
+    const res = await fetch('https://api.github.com/gists/' + settings.bankGistId, { headers });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const gist = await res.json();
+    const file = gist.files && gist.files['question-bank.json'];
+    if (!file || !file.content) throw new Error('云端没有找到题库文件');
+    const parsed = JSON.parse(file.content);
+    const items = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+    const cleaned = items
+      .filter(x => x && x.question)
+      .map(x => ({
+        subject: x.subject || '',
+        topic: x.topic || '',
+        question: String(x.question),
+        answer: x.answer ? String(x.answer) : ''
+      }));
+    const { existing, added } = mergeBankItems(cleaned);
+    localStorage.setItem(LS_BANK, JSON.stringify(existing));
+    hideProcessing();
+    showToast(`题库已合并 ${added} 道，共 ${existing.length} 道`);
+  } catch (err) {
+    hideProcessing();
+    showToast('拉取失败：' + err.message);
+  }
+}
+
 async function onBankSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2099,17 +2193,7 @@ async function onBankSelected(event) {
         answer: x.answer ? String(x.answer) : ''
       }));
     if (cleaned.length === 0) throw new Error('没有找到有效题目');
-    const existing = getQuestionBank();
-    const seen = new Set(existing.map(q => String(q.question).trim()));
-    let added = 0;
-    for (const q of cleaned) {
-      const key = String(q.question).trim();
-      if (!seen.has(key)) {
-        existing.push(q);
-        seen.add(key);
-        added++;
-      }
-    }
+    const { existing, added } = mergeBankItems(cleaned);
     if (added === 0) {
       showToast('没有新增题目（题库里已全部存在）');
       return;

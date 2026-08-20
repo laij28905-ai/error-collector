@@ -231,6 +231,10 @@
             <span>启动时自动从云端恢复</span>
             <input id="autoSync" type="checkbox">
           </label>
+          <label class="field-label" for="bankGistId">题库 Gist ID</label>
+          <input id="bankGistId" type="text" placeholder="老师分享的题库 Gist ID">
+          <button class="btn teal full" onclick="uploadBankToCloud()">上传题库到云端</button>
+          <button class="btn outline full" onclick="pullBankFromCloud()">拉取云端题库</button>
           <button class="btn primary full" onclick="syncUpload()">上传到云端</button>
           <button class="btn outline full" onclick="syncPull(false)">从云端恢复</button>
         </div>
@@ -302,7 +306,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.12 · Team Future</span>
+            <span>v3.13 · Team Future</span>
           </div>
         </div>
       </div>
