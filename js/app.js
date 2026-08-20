@@ -2593,6 +2593,28 @@ function getClassSummaryData() {
   return { students, total, mastered, rate: total ? Math.round(mastered / total * 100) : 0, weakTopics };
 }
 
+function getClassTrendData() {
+  const allErrors = Object.values(getClassData()).flat().filter(e => e && e.text);
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push({ key: dateKey(d), label: d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) });
+  }
+  const review = {};
+  const mastered = {};
+  allErrors.forEach(e => {
+    if (e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      review[k] = (review[k] || 0) + 1;
+    }
+    if (e.status === 'mastered' && e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      mastered[k] = (mastered[k] || 0) + 1;
+    }
+  });
+  return { days, review, mastered };
+}
+
 function openClassSummary() {
   const d = getClassSummaryData();
   if (d.students.length === 0) {
@@ -2613,6 +2635,22 @@ function openClassSummary() {
       <span class="weak-count">${count}题</span>
     </div>
   `).join('');
+  const trend = getClassTrendData();
+  const trendMax = Math.max(1, ...trend.days.map(day => Math.max(trend.review[day.key] || 0, trend.mastered[day.key] || 0)));
+  const trendReviewRows = trend.days.map(day => `
+    <div class="report-row">
+      <span>${day.label}</span>
+      <div class="weak-bar"><i style="width:${Math.max(4, Math.round((trend.review[day.key] || 0) / trendMax * 100))}%"></i></div>
+      <span class="weak-count">${trend.review[day.key] || 0}次</span>
+    </div>
+  `).join('');
+  const trendMasteredRows = trend.days.map(day => `
+    <div class="report-row">
+      <span>${day.label}</span>
+      <div class="weak-bar" style="background:var(--green-soft)"><i style="width:${Math.max(4, Math.round((trend.mastered[day.key] || 0) / trendMax * 100))}%"></i></div>
+      <span class="weak-count">${trend.mastered[day.key] || 0}题</span>
+    </div>
+  `).join('');
   const html = `
     <div class="report-block">
       <div class="report-row"><span>学生人数</span><div class="weak-bar"><i style="width:${Math.min(100, d.students.length * 10)}%"></i></div><span class="weak-count">${d.students.length}人</span></div>
@@ -2622,6 +2660,10 @@ function openClassSummary() {
     <div class="report-block">${studentRows}</div>
     <div class="section-title" style="margin-top:16px"><span>班级薄弱知识点</span></div>
     <div class="report-block">${weakRows}</div>
+    <div class="section-title" style="margin-top:16px"><span>班级近 7 天复习</span></div>
+    <div class="report-block">${trendReviewRows}</div>
+    <div class="section-title" style="margin-top:16px"><span>班级近 7 天新增掌握</span></div>
+    <div class="report-block">${trendMasteredRows}</div>
     <button class="btn primary full" style="margin-top:14px" onclick="exportClassSummary()">导出班级汇总</button>
   `;
   openModal('班级汇总', html);
@@ -2637,6 +2679,10 @@ function exportClassSummary() {
     <tr><td>${escapeHtml(s.name)}</td><td>${s.total}</td><td>${s.mastered}</td><td>${s.rate}%</td></tr>
   `).join('');
   const weakRows = d.weakTopics.map(([name, count]) => `<li>${escapeHtml(name)}：${count} 题</li>`).join('');
+  const trend = getClassTrendData();
+  const trendRows = trend.days.map(day => `
+    <tr><td>${day.label}</td><td>${trend.review[day.key] || 0}</td><td>${trend.mastered[day.key] || 0}</td></tr>
+  `).join('');
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -2662,6 +2708,11 @@ function exportClassSummary() {
 </table>
 <h2>班级薄弱知识点</h2>
 <ul>${weakRows}</ul>
+<h2>最近 7 天趋势</h2>
+<table>
+  <thead><tr><th>日期</th><th>复习</th><th>新增掌握</th></tr></thead>
+  <tbody>${trendRows}</tbody>
+</table>
 </body>
 </html>`;
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
