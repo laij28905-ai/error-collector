@@ -589,8 +589,75 @@ function openMasteryTrend() {
     <div class="report-block">${rows}</div>
     <div class="section-title" style="margin-top:16px"><span>每日新增掌握</span></div>
     <div class="report-block">${masteredRows}</div>
+    <button class="btn primary full" style="margin-top:14px" onclick="exportMasteryTrend()">导出趋势</button>
   `;
   openModal('掌握趋势', html);
+}
+
+function exportMasteryTrend() {
+  if (allErrors.length === 0) {
+    showToast('还没有数据可导出');
+    return;
+  }
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push({
+      key: dateKey(d),
+      label: d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) + (i === 0 ? '（今天）' : '')
+    });
+  }
+  const reviewCounts = {};
+  const masteredCounts = {};
+  allErrors.forEach(e => {
+    if (e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      reviewCounts[k] = (reviewCounts[k] || 0) + 1;
+    }
+    if (e.status === 'mastered' && e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      masteredCounts[k] = (masteredCounts[k] || 0) + 1;
+    }
+  });
+  const rows = days.map(d => `
+    <tr>
+      <td>${d.label}</td>
+      <td>${reviewCounts[d.key] || 0}</td>
+      <td>${masteredCounts[d.key] || 0}</td>
+    </tr>
+  `).join('');
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>掌握趋势</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 720px; margin: 0 auto; padding: 28px; color: #1c2433; }
+  h1 { font-size: 22px; }
+  .sub { color: #697386; font-size: 13px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #e2e7ef; padding: 9px 12px; text-align: left; }
+  th { background: #f3f5f9; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>掌握趋势</h1>
+<div class="sub">Team Future · 错题助手 · ${new Date().toLocaleDateString('zh-CN')}</div>
+<table>
+  <thead><tr><th>日期</th><th>复习次数</th><th>新增掌握</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `掌握趋势_${new Date().toLocaleDateString('zh-CN')}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('掌握趋势已导出');
 }
 
 function getStudyPlanData() {
