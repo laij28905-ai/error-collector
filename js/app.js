@@ -40,7 +40,8 @@ const DEFAULT_SETTINGS = {
   syncGistId: '',
   autoSync: false,
   dailyGoal: 3,
-  bankGistId: ''
+  bankGistId: '',
+  classGistId: ''
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -286,6 +287,17 @@ function applyInitialHash() {
       const el = document.getElementById('bankGistId');
       if (el) el.value = gid;
       showToast('已识别题库 Gist ID，可到“我的 → 云同步”拉取');
+    }
+    return;
+  }
+  if (raw.startsWith('class-gist-')) {
+    const gid = raw.slice('class-gist-'.length);
+    if (gid) {
+      settings.classGistId = gid;
+      persistSettings();
+      const el = document.getElementById('classGistId');
+      if (el) el.value = gid;
+      showToast('已识别班级汇总 Gist ID，可到“我的 → 云同步”拉取');
     }
     return;
   }
@@ -2023,6 +2035,7 @@ function saveSettings() {
   settings.syncGistId = document.getElementById('syncGistId').value.trim();
   settings.autoSync = document.getElementById('autoSync').checked;
   settings.bankGistId = document.getElementById('bankGistId').value.trim();
+  settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.dailyGoal = Math.max(0, Math.min(20, Number(document.getElementById('dailyGoal').value) || 0));
   persistSettings();
   showToast('设置已保存');
@@ -2039,6 +2052,7 @@ function fillSettingsForm() {
   document.getElementById('syncGistId').value = settings.syncGistId || '';
   document.getElementById('autoSync').checked = !!settings.autoSync;
   document.getElementById('bankGistId').value = settings.bankGistId || '';
+  document.getElementById('classGistId').value = settings.classGistId || '';
   document.getElementById('dailyGoal').value = settings.dailyGoal || 0;
 }
 
@@ -2495,6 +2509,83 @@ async function pullBankFromCloud() {
     localStorage.setItem(LS_BANK, JSON.stringify(existing));
     hideProcessing();
     showToast(`题库已合并 ${added} 道，共 ${existing.length} 道`);
+  } catch (err) {
+    hideProcessing();
+    showToast('拉取失败：' + err.message);
+  }
+}
+
+async function uploadClassCloud() {
+  settings.classGistId = document.getElementById('classGistId').value.trim();
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  persistSettings();
+  const obj = getClassData();
+  const hasData = Object.values(obj).some(arr => Array.isArray(arr) && arr.length);
+  if (!hasData) {
+    showToast('还没有班级数据可上传');
+    return;
+  }
+  if (!settings.syncToken) {
+    showToast('请先填写 GitHub Token');
+    return;
+  }
+  showProcessing('上传班级汇总', '正在同步到 Gist');
+  try {
+    const content = JSON.stringify({ students: obj }, null, 2);
+    let gist;
+    if (settings.classGistId) {
+      gist = await gistApi('https://api.github.com/gists/' + settings.classGistId, 'PATCH', {
+        files: { 'class-summary.json': { content } }
+      });
+    } else {
+      gist = await gistApi('https://api.github.com/gists', 'POST', {
+        description: '错题助手班级汇总',
+        public: false,
+        files: { 'class-summary.json': { content } }
+      });
+      settings.classGistId = gist.id;
+      persistSettings();
+      document.getElementById('classGistId').value = gist.id;
+    }
+    hideProcessing();
+    showToast('班级汇总已上传到云端');
+  } catch (err) {
+    hideProcessing();
+    showToast('上传失败：' + err.message);
+  }
+}
+
+async function pullClassCloud() {
+  settings.classGistId = document.getElementById('classGistId').value.trim();
+  settings.syncToken = document.getElementById('syncToken').value.trim();
+  persistSettings();
+  if (!settings.classGistId) {
+    showToast('请先填写班级汇总 Gist ID');
+    return;
+  }
+  showProcessing('拉取班级汇总', '正在从云端读取');
+  try {
+    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'codex' };
+    if (settings.syncToken) headers['Authorization'] = 'Bearer ' + settings.syncToken;
+    const res = await fetch('https://api.github.com/gists/' + settings.classGistId, { headers });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const gist = await res.json();
+    const file = gist.files && gist.files['class-summary.json'];
+    if (!file || !file.content) throw new Error('云端没有找到班级汇总文件');
+    const parsed = JSON.parse(file.content);
+    const cloud = parsed.students || parsed;
+    if (!cloud || typeof cloud !== 'object') throw new Error('班级数据格式不正确');
+    const obj = getClassData();
+    let count = 0;
+    for (const [name, arr] of Object.entries(cloud)) {
+      if (name && Array.isArray(arr) && arr.length) {
+        obj[name] = arr.map(x => Object.assign({}, x));
+        count++;
+      }
+    }
+    saveClassData(obj);
+    hideProcessing();
+    showToast(`已拉取并合并 ${count} 名学生`);
   } catch (err) {
     hideProcessing();
     showToast('拉取失败：' + err.message);

@@ -238,6 +238,10 @@
           <button class="btn teal full" onclick="uploadBankToCloud()">上传题库到云端</button>
           <button class="btn outline full" onclick="pullBankFromCloud()">拉取云端题库</button>
           <button class="btn outline full" onclick="copyBankShareLink()">复制题库分享链接</button>
+          <label class="field-label" for="classGistId">班级汇总 Gist ID</label>
+          <input id="classGistId" type="text" placeholder="用于同步班级数据">
+          <button class="btn teal full" onclick="uploadClassCloud()">上传班级汇总到云端</button>
+          <button class="btn outline full" onclick="pullClassCloud()">拉取班级汇总</button>
           <button class="btn primary full" onclick="syncUpload()">上传到云端</button>
           <button class="btn outline full" onclick="syncPull(false)">从云端恢复</button>
         </div>
@@ -333,7 +337,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.28 · Team Future</span>
+            <span>v3.29 · Team Future</span>
           </div>
         </div>
       </div>
