@@ -2245,6 +2245,26 @@ function exportStudyReport() {
   const weekNew = allErrors.filter(e => e.createdAt && new Date(e.createdAt).getTime() >= weekStart).length;
   const weekReviewed = allErrors.filter(e => e.lastReviewedAt && new Date(e.lastReviewedAt).getTime() >= weekStart).length;
   const streak = getStreak();
+  const trendDays = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    trendDays.push({ key: dateKey(d), label: d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) });
+  }
+  const trendReview = {};
+  const trendMastered = {};
+  allErrors.forEach(e => {
+    if (e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      trendReview[k] = (trendReview[k] || 0) + 1;
+    }
+    if (e.status === 'mastered' && e.lastReviewedAt) {
+      const k = dateKey(new Date(e.lastReviewedAt));
+      trendMastered[k] = (trendMastered[k] || 0) + 1;
+    }
+  });
+  const trendRows = trendDays.map(d => `
+    <tr><td>${d.label}</td><td>${trendReview[d.key] || 0}</td><td>${trendMastered[d.key] || 0}</td></tr>
+  `).join('');
 
   const counts = {};
   allErrors.forEach(e => {
@@ -2303,6 +2323,11 @@ function exportStudyReport() {
 </ul>
 <h2>薄弱知识点</h2>
 <ul>${weakRows}</ul>
+<h2>最近 7 天趋势</h2>
+<table>
+  <thead><tr><th>日期</th><th>复习</th><th>新增掌握</th></tr></thead>
+  <tbody>${trendRows}</tbody>
+</table>
 <h2>最近错题</h2>
 <table>
   <thead><tr><th>#</th><th>科目</th><th>知识点</th><th>错因</th><th>状态</th></tr></thead>
