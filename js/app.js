@@ -2890,6 +2890,24 @@ function openClassCompare() {
   openModal('班级对比', html);
 }
 
+function openProgressBoard() {
+  const d = getClassSummaryData();
+  if (d.students.length === 0) {
+    openModal('学生进步榜', '<div class="empty-state"><div class="es-icon">🏆</div><div class="es-title">还没有学生数据</div><div class="es-desc">先导入学生数据</div></div>');
+    return;
+  }
+  const medals = ['🥇', '🥈', '🥉'];
+  const sorted = [...d.students].sort((a, b) => b.rate - a.rate || b.mastered - a.mastered);
+  const rows = sorted.map((s, i) => `
+    <div class="report-row">
+      <span>${medals[i] || (i + 1)}. ${escapeHtml(s.name)}</span>
+      <div class="weak-bar"><i style="width:${s.rate}%"></i></div>
+      <span class="weak-count">${s.rate}%</span>
+    </div>
+  `).join('');
+  openModal('学生进步榜', `<div class="report-block">${rows}</div>`);
+}
+
 async function onBankSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
