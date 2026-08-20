@@ -196,6 +196,12 @@
           <input id="aiEndpoint" type="text" placeholder="https://api.openai.com/v1">
           <label class="field-label" for="aiModel">模型</label>
           <input id="aiModel" type="text" placeholder="gpt-4o-mini">
+          <label class="switch-row">
+            <span>优先使用 AI 视觉识别</span>
+            <input id="useAiOcr" type="checkbox">
+          </label>
+          <label class="field-label" for="ocrModel">视觉识别模型</label>
+          <input id="ocrModel" type="text" placeholder="gpt-4o-mini">
           <label class="field-label" for="aiKey">API Key</label>
           <input id="aiKey" type="password" placeholder="留空则使用离线模板">
           <button class="btn primary full" onclick="saveSettings()">保存设置</button>
@@ -229,7 +235,7 @@
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.1 · Team Future</span>
+            <span>v3.2 · Team Future</span>
           </div>
         </div>
       </div>

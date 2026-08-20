@@ -33,7 +33,9 @@ const DEFAULT_SETTINGS = {
   aiModel: 'gpt-4o-mini',
   aiKey: '',
   ocrLang: 'chi_sim+eng',
-  openCaptureOnLaunch: false
+  openCaptureOnLaunch: false,
+  useAiOcr: false,
+  ocrModel: 'gpt-4o-mini'
 };
 
 const CAUSES = ['概念不清', '计算失误', '审题遗漏', '思路卡住', '时间不够', '其他'];
@@ -766,6 +768,61 @@ async function runOcr() {
     showToast('请先拍照或选择图片');
     return;
   }
+
+  const canUseAi = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
+  if (settings.useAiOcr && canUseAi) {
+    showProcessing('AI 视觉识别中', '正在分析图片文字');
+    try {
+      const aiText = await callVisionOcr(capturedImage);
+      if (aiText) {
+        hideProcessing();
+        openSaveModal(aiText, guessSubject(aiText));
+        return;
+      }
+      showToast('AI 未识别到文字，改用本地 OCR');
+    } catch (err) {
+      console.warn('AI OCR failed', err);
+      showToast('AI 识别失败，改用本地 OCR');
+    }
+  }
+
+  await runTesseractOcr();
+}
+
+async function callVisionOcr(dataUrl) {
+  const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
+  const headers = { 'Content-Type': 'application/json' };
+  if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
+  const res = await fetch(base + '/chat/completions', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: settings.ocrModel || settings.aiModel || DEFAULT_SETTINGS.ocrModel,
+      temperature: 0,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: '请识别这张高中错题图片中的全部题目文字。只输出识别到的文字，不要解释，不要添加答案。'
+            },
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl }
+            }
+          ]
+        }
+      ]
+    })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+  return String(content || '').trim();
+}
+
+async function runTesseractOcr() {
   showProcessing('OCR 识别中', '首次使用需加载识别引擎');
   try {
     await loadTesseract();
@@ -1393,6 +1450,8 @@ function saveSettings() {
   settings.aiEndpoint = document.getElementById('aiEndpoint').value.trim();
   settings.aiModel = document.getElementById('aiModel').value.trim();
   settings.aiKey = document.getElementById('aiKey').value.trim();
+  settings.useAiOcr = document.getElementById('useAiOcr').checked;
+  settings.ocrModel = document.getElementById('ocrModel').value.trim();
   settings.openCaptureOnLaunch = document.getElementById('openCaptureOnLaunch').checked;
   persistSettings();
   showToast('设置已保存');
@@ -1402,6 +1461,8 @@ function fillSettingsForm() {
   document.getElementById('aiEndpoint').value = settings.aiEndpoint || '';
   document.getElementById('aiModel').value = settings.aiModel || '';
   document.getElementById('aiKey').value = settings.aiKey || '';
+  document.getElementById('useAiOcr').checked = !!settings.useAiOcr;
+  document.getElementById('ocrModel').value = settings.ocrModel || '';
   document.getElementById('openCaptureOnLaunch').checked = !!settings.openCaptureOnLaunch;
 }
 
