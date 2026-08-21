@@ -368,7 +368,7 @@ function renderWeakTopics() {
   });
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
   if (top.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-desc">录入错题后，这里会显示薄弱知识点</div></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-desc">暂无薄弱知识点</div></div>';
     return;
   }
   const max = Math.max(...top.map(x => x[1]));
@@ -384,7 +384,7 @@ function renderWeakTopics() {
 function renderRecent() {
   const container = document.getElementById('recentList');
   if (allErrors.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding:22px"><div class="es-desc">还没有错题，先拍一道吧</div></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:22px"><div class="es-desc">暂无错题</div></div>';
     return;
   }
   container.innerHTML = allErrors.slice(0, 4).map(e => `
@@ -533,7 +533,6 @@ function openWeeklyReport() {
     </div>
     <div class="section-title" style="margin-top:16px"><span>本周新增知识点</span></div>
     <div class="report-block">${weakRows}</div>
-    <div class="report-note">坚持每天复习，错题会慢慢变成你的提分资产。</div>
   `;
   openModal('本周学习报告', html);
 }
@@ -625,7 +624,7 @@ function copyClassReportLink() {
 function showParentReport() {
   const d = getParentReportData();
   if (!d.total) {
-    openModal('家长周报', '<div class="empty-state"><div class="es-icon">👨‍👩‍👧</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后生成周报</div></div>');
+    openModal('家长周报', '<div class="empty-state"><div class="es-icon">👨‍👩‍👧</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const weakRows = d.weak.map(([name, count]) => `<li>${escapeHtml(name)}（${count} 题）</li>`).join('');
@@ -645,7 +644,7 @@ function showParentReport() {
 
 function openSubjectBoard() {
   if (allErrors.length === 0) {
-    openModal('学情看板', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可查看学科掌握情况</div></div>');
+    openModal('学情看板', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
 
@@ -702,7 +701,7 @@ function openSubjectBoard() {
 
 function openMasteryTrend() {
   if (allErrors.length === 0) {
-    openModal('掌握趋势', '<div class="empty-state"><div class="es-icon">📈</div><div class="es-title">还没有数据</div><div class="es-desc">录入并复习错题后即可查看趋势</div></div>');
+    openModal('掌握趋势', '<div class="empty-state"><div class="es-icon">📈</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const days = [];
@@ -840,7 +839,7 @@ function getWeeklyPlanData() {
 
 function openWeeklyPlan() {
   if (allErrors.length === 0) {
-    openModal('周学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后自动生成周计划</div></div>');
+    openModal('周学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const days = getWeeklyPlanData();
@@ -917,7 +916,7 @@ function getStudyPlanData() {
 
 function openStudyPlan() {
   if (allErrors.length === 0) {
-    openModal('学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">还没有数据</div><div class="es-desc">录入错题后即可生成学习计划</div></div>');
+    openModal('学习计划', '<div class="empty-state"><div class="es-icon">📅</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const d = getStudyPlanData();
@@ -1490,7 +1489,7 @@ function openSaveModal(text, guessedSubject) {
       </div>
       <div>
         <label class="field-label">答案 / 解析（选填）</label>
-        <textarea id="formAnswer" rows="3" placeholder="记录正确答案或解题思路"></textarea>
+        <textarea id="formAnswer" rows="3" placeholder="答案或解析"></textarea>
       </div>
       <div class="modal-actions">
         <button class="btn outline" onclick="closeModal()">取消</button>
@@ -1663,7 +1662,7 @@ function renderErrorList() {
   const container = document.getElementById('errorList');
   const filtered = getFilteredErrors();
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-title">没有匹配的错题</div><div class="es-desc">换个筛选条件，或去录入一道新错题</div></div>';
+    container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-title">暂无错题</div><div class="es-desc">换筛选条件试试</div></div>';
     return;
   }
   container.innerHTML = filtered.map(e => {
@@ -2930,7 +2929,7 @@ function getClassTrendData() {
 function openClassSummary() {
   const d = getClassSummaryData();
   if (d.students.length === 0) {
-    openModal('班级汇总', '<div class="empty-state"><div class="es-icon">🏫</div><div class="es-title">还没有学生数据</div><div class="es-desc">先导入学生导出的错题数据</div></div>');
+    openModal('班级汇总', '<div class="empty-state"><div class="es-icon">🏫</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const studentRows = d.students.map(s => `
@@ -3084,7 +3083,7 @@ function showClassQr() {
   openModal('班级报告二维码', `
     <div style="text-align:center">
       <img src="${qr}" alt="班级报告二维码" style="width:260px;max-width:82%;border-radius:8px">
-      <div class="report-note">扫码打开本周学习摘要</div>
+      <div class="report-note">扫码查看</div>
     </div>
   `);
 }
@@ -3257,7 +3256,7 @@ function classRate(arr) {
 function openClassCompare() {
   const snapshots = getClassSnapshots();
   if (snapshots.length < 2) {
-    openModal('班级对比', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">需要至少两次快照</div><div class="es-desc">先保存两次班级快照后再对比</div></div>');
+    openModal('班级对比', '<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const prev = snapshots[snapshots.length - 2];
@@ -3286,7 +3285,7 @@ function openClassCompare() {
 function openProgressBoard() {
   const d = getClassSummaryData();
   if (d.students.length === 0) {
-    openModal('学生进步榜', '<div class="empty-state"><div class="es-icon">🏆</div><div class="es-title">还没有学生数据</div><div class="es-desc">先导入学生数据</div></div>');
+    openModal('学生进步榜', '<div class="empty-state"><div class="es-icon">🏆</div><div class="es-title">暂无数据</div><div class="es-desc"></div></div>');
     return;
   }
   const medals = ['🥇', '🥈', '🥉'];
