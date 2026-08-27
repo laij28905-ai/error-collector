@@ -1,10 +1,11 @@
-const CACHE_NAME = 'team-future-error-collector-v41';
+const CACHE_NAME = 'team-future-error-collector-v42';
 const APP_SHELL = [
   './',
   './index.html',
   './app.html',
   './styles.css',
   './js/app.js',
+  './js/album-enhance.js',
   './vendor/dexie.min.js',
   './manifest.json'
 ];
