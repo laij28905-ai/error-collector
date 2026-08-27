@@ -201,7 +201,7 @@
   }
 
   function rotate(dir) {
-    if (!window.capturedImage) return;
+    if (!capturedImage) return;
     var img = new Image();
     img.onload = function () {
       var w = img.naturalWidth, h = img.naturalHeight;
@@ -211,23 +211,23 @@
       ctx.translate(h / 2, w / 2);
       ctx.rotate(dir === 'left' ? -Math.PI / 2 : Math.PI / 2);
       ctx.drawImage(img, -w / 2, -h / 2);
-      window.capturedImage = canvas.toDataURL('image/jpeg', 0.92);
+      capturedImage = canvas.toDataURL('image/jpeg', 0.92);
       var cropImg = document.getElementById('cropImg');
       if (cropImg) {
         cropImg.onload = setup;
-        cropImg.src = window.capturedImage;
+        cropImg.src = capturedImage;
       }
     };
-    img.src = window.capturedImage;
+    img.src = capturedImage;
   }
 
   function openCropModal() {
-    if (!window.capturedImage) return;
+    if (!capturedImage) return;
     if (typeof window.openModal !== 'function') return;
-    window.cropModalOpen = true;
+    cropModalOpen = true;
     window.openModal('裁剪与校正', [
       '<div class="crop-stage" id="cropStage">',
-      '  <img id="cropImg" src="' + window.capturedImage + '" alt="裁剪区域">',
+      '  <img id="cropImg" src="' + capturedImage + '" alt="裁剪区域">',
       '  <div class="crop-frame" id="cropFrame">',
       '    <span class="cf-handle cf-nw"></span><span class="cf-handle cf-n"></span><span class="cf-handle cf-ne"></span>',
       '    <span class="cf-handle cf-w"></span><span class="cf-handle cf-e"></span>',
@@ -275,7 +275,7 @@
     var img = document.getElementById('cropImg');
     if (!img) return;
     canvas.getContext('2d').drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
-    window.capturedImage = canvas.toDataURL('image/jpeg', 0.92);
+    capturedImage = canvas.toDataURL('image/jpeg', 0.92);
     drag = null;
     S.active = false;
     if (typeof window.closeModal === 'function') window.closeModal();
