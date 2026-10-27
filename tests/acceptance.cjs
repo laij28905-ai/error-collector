@@ -24,7 +24,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('closeout-v1','acceptance-v2'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('closeout-v2','acceptance-v3'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -81,7 +81,8 @@ if(process.argv.includes('--serve')) {
   await startServer();base='http://127.0.0.1:'+serverPort;
   await open();
   await test('Fresh install verifies all 12 offline resources',async()=>{
-    await page.goto(base+'/app.html');
+    await page.goto(base+'/');
+    await page.waitForURL(base+'/app.html');
     await page.waitForFunction(()=>offlineReady,null,{timeout:90000});
     assert.equal(await page.locator('#offlineStatus').textContent(),'离线识别已就绪');
     await page.screenshot({path:path.join(output,'home-desktop.png'),animations:'disabled'});
