@@ -79,6 +79,16 @@ let cropModalOpen = false;
 let cropState = null;
 let batchMode = false;
 let selectedIds = new Set();
+let ocrBusy = false;
+let saveBusy = false;
+let reviewBusy = false;
+let processingBusy = false;
+let syncBusy = false;
+let ocrWorker = null;
+let saveImageSnapshot = null;
+let lastOcrRaw = '';
+let cameraRequest = 0;
+let imageRequest = 0;
 
 /* ===================== 数据层 ===================== */
 
@@ -97,32 +107,33 @@ function lsSaveErrors(arr) {
 
 async function initStorage() {
   try {
-    if (typeof Dexie !== 'undefined') {
-      db = new Dexie('TeamFutureErrorCollector');
-      db.version(1).stores({
-        errors: '++id, subject, status, nextReviewAt, createdAt'
-      });
-      return;
+    if (typeof Dexie === 'undefined') throw new Error('数据组件未加载');
+    db = new Dexie('TeamFutureErrorCollector');
+    db.version(1).stores({ errors: '++id, subject, status, nextReviewAt, createdAt' });
+    await db.open();
+    const legacy = lsLoadErrors();
+    if (legacy.length && await db.errors.count() === 0) {
+      await writeRecords(normalizeRecords(legacy), 'replace');
+      localStorage.removeItem(LS_ERRORS);
     }
-  } catch (e) {
-    console.warn('Dexie init failed', e);
+  } catch (error) {
+    if (db) db.close();
+    db = null; useLocalFallback = true;
+    document.getElementById('storageNotice').textContent = '浏览器数据库不可用，暂用容量较小的本地存储。请及时导出备份。';
+    document.getElementById('storageNotice').classList.remove('hidden');
+    try { localStorage.setItem('tf-storage-probe', '1'); localStorage.removeItem('tf-storage-probe'); }
+    catch (_) { document.getElementById('storageNotice').textContent = '浏览器禁止保存数据。请允许本站存储后再录题。'; }
   }
-  useLocalFallback = true;
 }
 
 async function storeLoad() {
-  if (db) {
-    try {
-      return await db.errors.orderBy('createdAt').reverse().toArray();
-    } catch (e) {
-      useLocalFallback = true;
-    }
-  }
+  if (db) return db.errors.orderBy('createdAt').reverse().toArray();
   return lsLoadErrors().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 async function storeAdd(item) {
-  if (db) return db.errors.add(item);
+  if (!item.syncId) item.syncId = crypto.randomUUID();
+  if (db) { item.id = await db.errors.add(item); return item.id; }
   const arr = lsLoadErrors();
   const maxId = arr.reduce((m, x) => Math.max(m, x.id || 0), 0);
   item.id = maxId + 1;
@@ -132,8 +143,9 @@ async function storeAdd(item) {
 }
 
 async function storeUpdate(id, changes) {
+  changes = { ...changes, updatedAt: changes.updatedAt || new Date().toISOString() };
   if (db) {
-    await db.errors.update(id, changes);
+    if (!await db.errors.update(id, changes)) throw new Error('题目已不存在，请刷新后重试');
     return;
   }
   const arr = lsLoadErrors();
@@ -161,20 +173,14 @@ async function storeClear() {
 }
 
 async function storeBulkAdd(items) {
-  if (db) {
-    await db.errors.bulkAdd(items);
-    return;
-  }
-  const arr = lsLoadErrors();
-  arr.push(...items);
-  lsSaveErrors(arr);
+  return writeRecords(normalizeRecords(items), 'merge');
 }
 
 function loadSettings() {
   try {
-    settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}'));
+    settings = normalizeSettings(JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}'));
   } catch (e) {
-    settings = Object.assign({}, DEFAULT_SETTINGS);
+    settings = normalizeSettings({});
   }
 }
 
@@ -189,6 +195,9 @@ async function loadErrors() {
 /* ===================== 初始化 ===================== */
 
 document.addEventListener('DOMContentLoaded', async () => {
+  bindEvents();
+  registerSW();
+  try {
   await initStorage();
   loadSettings();
   applyTheme();
@@ -200,22 +209,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateHome();
   updateNavBadge();
   const dueNow = allErrors.filter(e => e.status !== 'mastered' && (!e.nextReviewAt || new Date(e.nextReviewAt).getTime() <= Date.now())).length;
-  if (dueNow > 0) setTimeout(() => showToast(`今天还有 ${dueNow} 道错题待复习`), 700);
-  const dailyGoal = Math.max(0, Number(settings.dailyGoal) || 0);
-  const dailyCount = getDailyReviewCount();
-  if (dailyGoal > 0 && dailyCount < dailyGoal) {
-    setTimeout(() => showToast(`今日还差 ${dailyGoal - dailyCount} 次复习`), 1200);
-  }
   if (allErrors.length > 0 && getBackupDays() > 7) {
     setTimeout(() => showToast('已超过 7 天未备份，建议导出完整备份'), 1700);
   }
   if (settings.autoSync && settings.syncToken && settings.syncGistId) {
     setTimeout(() => syncPull(true), 900);
   }
-  bindEvents();
-  registerSW();
   updateNet();
   applyInitialHash();
+  } catch (error) {
+    notifyFailure(error);
+    document.getElementById('storageNotice').textContent = '数据读取失败。请保留当前浏览器数据，重启后再试。';
+    document.getElementById('storageNotice').classList.remove('hidden');
+  }
 });
 
 function bindEvents() {
@@ -228,6 +234,9 @@ function bindEvents() {
     if (currentPage !== 'capture') return;
     handleClipboardItems(e.clipboardData && e.clipboardData.items);
   });
+  window.addEventListener('pagehide', stopCamera);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopCamera(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
   const overlay = document.getElementById('modalOverlay');
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeModal();
@@ -235,12 +244,6 @@ function bindEvents() {
   window.addEventListener('online', updateNet);
   window.addEventListener('offline', updateNet);
   window.addEventListener('hashchange', applyInitialHash);
-}
-
-function registerSW() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
 }
 
 function updateNet() {
@@ -254,10 +257,7 @@ function updateNet() {
 /* ===================== 导航 ===================== */
 
 function navigateTo(page) {
-  if (page === currentPage) {
-    if (page === 'review') initReview();
-    return;
-  }
+  if (page === currentPage || reviewBusy || ocrBusy) return;
   if (page !== 'capture' && cameraStream) stopCamera();
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -278,7 +278,7 @@ function navigateTo(page) {
     fillSettingsForm();
     renderSubjectSettings();
   }
-  window.scrollTo({ top: 0 });
+  document.getElementById('appContent').scrollTo({ top: 0 });
   if (location.hash !== '#' + page) {
     history.replaceState(null, '', '#' + page);
   }
@@ -334,13 +334,9 @@ function goCapture() {
 /* ===================== 首页 ===================== */
 
 function setGreeting() {
-  const h = new Date().getHours();
-  const text = h < 6 ? '夜深了，也要早点休息' : h < 12 ? '早上好' : h < 18 ? '下午好' : '晚上好';
-  document.getElementById('homeGreeting').textContent = text + '，整理一道错题';
+  document.getElementById('homeGreeting').textContent = '把不会的，慢慢学会。';
   document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('zh-CN', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
+    month: 'long', day: 'numeric', weekday: 'long'
   });
 }
 
@@ -384,7 +380,7 @@ function renderWeakTopics() {
 function renderRecent() {
   const container = document.getElementById('recentList');
   if (allErrors.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding:22px"><div class="es-desc">暂无错题</div></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:22px"><div class="es-title">这里会留下你的进步</div><div class="es-desc">拍下第一道错题，随时回来复习。</div></div>';
     return;
   }
   container.innerHTML = allErrors.slice(0, 4).map(e => `
@@ -437,7 +433,7 @@ function dateKey(date) {
 function updateStreak() {
   const badge = document.getElementById('streakBadge');
   if (!badge) return;
-  badge.textContent = `🔥 ${getStreak()} 天`;
+  badge.textContent = getStreak() ? `已连续复习 ${getStreak()} 天` : '从一道题开始';
 }
 
 function getStreak() {
@@ -589,37 +585,9 @@ function copyWeeklyReportText() {
   }
 }
 
-function copyParentReportLink() {
-  if (allErrors.length === 0) {
-    showToast('还没有数据可分享');
-    return;
-  }
-  const link = `${location.origin}${location.pathname}#parent-report`;
-  const done = () => showToast('家长周报链接已复制');
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(link).then(done).catch(() => {
-      window.prompt('复制家长周报链接', link);
-    });
-  } else {
-    window.prompt('复制家长周报链接', link);
-  }
-}
+function copyParentReportLink() { copyWeeklyReportText(); }
 
-function copyClassReportLink() {
-  if (getClassSummaryData().students.length === 0) {
-    showToast('还没有班级数据可分享');
-    return;
-  }
-  const link = `${location.origin}${location.pathname}#class-report`;
-  const done = () => showToast('班级报告链接已复制');
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(link).then(done).catch(() => {
-      window.prompt('复制班级报告链接', link);
-    });
-  } else {
-    window.prompt('复制班级报告链接', link);
-  }
-}
+function copyClassReportLink() { exportClassSummary(); }
 
 function showParentReport() {
   const d = getParentReportData();
@@ -1000,46 +968,36 @@ function exportStudyPlan() {
 }
 
 async function startCamera() {
-  const preview = document.getElementById('capturePreview');
-  preview.innerHTML = '<video id="videoEl" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>';
-  videoEl = document.getElementById('videoEl');
-  const btn = document.getElementById('btnCamera');
+  if (ocrBusy) return;
+  stopCamera();
+  const token = ++cameraRequest;
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1440 } }
-    });
-    videoEl.srcObject = cameraStream;
-    btn.textContent = '📸 拍照';
-    btn.onclick = takePhoto;
-    document.getElementById('btnAlbum').classList.add('hidden');
-  } catch (err) {
-    if (facingMode === 'environment') {
-      facingMode = 'user';
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        videoEl.srcObject = cameraStream;
-        btn.textContent = '📸 拍照';
-        btn.onclick = takePhoto;
-        return;
-      } catch (e2) {}
-    }
-    preview.innerHTML = '<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">打不开相机，请选择相册图片</div></div>';
-    showToast('打不开相机，试试相册');
-  }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } } });
+    if (token !== cameraRequest || currentPage !== 'capture' || document.hidden) { stream.getTracks().forEach(t => t.stop()); return; }
+    cameraStream = stream;
+    const preview = document.getElementById('capturePreview');
+    preview.innerHTML = '<video id="videoEl" autoplay muted playsinline></video>';
+    videoEl = document.getElementById('videoEl'); videoEl.srcObject = stream;
+    const btn = document.getElementById('btnCamera'); btn.textContent = '拍下这道题'; btn.onclick = takePhoto;
+    document.getElementById('btnRetake').classList.remove('hidden');
+    document.getElementById('btnOcr').classList.add('hidden');
+  } catch (_) { showToast('无法打开相机，可以从相册选择题目'); stopCamera(); }
 }
 
 function stopCamera() {
+  cameraRequest++;
   if (cameraStream) {
     cameraStream.getTracks().forEach(t => t.stop());
     cameraStream = null;
   }
+  if (videoEl) videoEl.srcObject = null;
   videoEl = null;
+  const button = document.getElementById('btnCamera');
+  if (button) { button.textContent = '拍照'; button.onclick = startCamera; }
 }
 
 function takePhoto() {
-  if (!videoEl) return;
+  if (!videoEl || !videoEl.videoWidth || ocrBusy) { showToast('相机还在准备，请稍候'); return; }
   const canvas = document.createElement('canvas');
   canvas.width = videoEl.videoWidth || 1280;
   canvas.height = videoEl.videoHeight || 960;
@@ -1060,18 +1018,27 @@ function onFileSelected(event) {
   event.target.value = '';
 }
 
-function readFileAsImage(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    capturedImage = e.target.result;
-    showCapturedImage();
-  };
-  reader.readAsDataURL(file);
+async function readFileAsImage(file) {
+  if (ocrBusy) return;
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type) || file.size > 25000000) { showToast('请选择 25 MB 以内的 JPG、PNG 或 WebP 图片'); return; }
+  const token = ++imageRequest;
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('图片读取失败')); reader.readAsDataURL(file);
+    });
+    const resized = await compressImage(data, 2400, 2000000);
+    if (token !== imageRequest || ocrBusy) return;
+    stopCamera(); capturedImage = resized; lastOcrRaw = '';
+    navigateTo('capture'); showCapturedImage();
+  } catch (error) { notifyFailure(error); }
 }
 
 function showCapturedImage() {
-  document.getElementById('capturePreview').innerHTML = `<img src="${capturedImage}" alt="错题图片">`;
-  document.getElementById('btnCamera').textContent = '📸 拍照';
+  stopCamera();
+  document.getElementById('saveImageOnly').classList.remove('hidden');
+  document.getElementById('capturePreview').innerHTML = `<img src="${imageHtml(capturedImage)}" alt="错题图片">`;
+  document.getElementById('btnCamera').textContent = '拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnAlbum').classList.remove('hidden');
   document.getElementById('btnCrop').classList.remove('hidden');
@@ -1080,10 +1047,13 @@ function showCapturedImage() {
 }
 
 function retakeCapture() {
+  if (ocrBusy) return;
+  imageRequest++; lastOcrRaw = ''; saveImageSnapshot = null;
   capturedImage = null;
+  document.getElementById('saveImageOnly').classList.add('hidden');
   stopCamera();
-  document.getElementById('capturePreview').innerHTML = '<div class="placeholder"><div class="pl-icon">📷</div><div class="pl-text">拍照或选择图片</div></div>';
-  document.getElementById('btnCamera').textContent = '📸 拍照';
+  document.getElementById('capturePreview').innerHTML = '<div class="placeholder"><div class="capture-glyph" aria-hidden="true">＋</div><div class="pl-text">拍照或选择图片</div></div>';
+  document.getElementById('btnCamera').textContent = '拍照';
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnCrop').classList.add('hidden');
   document.getElementById('btnOcr').classList.add('hidden');
@@ -1134,7 +1104,7 @@ function openCropModal() {
   cropModalOpen = true;
   openModal('裁剪与校正', `
     <div class="crop-stage" id="cropStage">
-      <img id="cropImg" src="${capturedImage}" alt="裁剪区域">
+      <img id="cropImg" src="${imageHtml(capturedImage)}" alt="裁剪区域">
       <div class="crop-frame"></div>
     </div>
     <div class="crop-tools">
@@ -1307,60 +1277,52 @@ function applyCrop() {
 /* ===================== OCR ===================== */
 
 function loadScript(urls) {
-  const list = Array.isArray(urls) ? urls : [urls];
-  function tryLoad(i) {
-    if (i >= list.length) return Promise.reject(new Error('所有 CDN 均加载失败'));
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = list[i];
-      s.onload = resolve;
-      s.onerror = () => reject(new Error('加载失败'));
-      document.head.appendChild(s);
-    }).catch(() => tryLoad(i + 1));
-  }
-  return tryLoad(0);
+  const url = Array.isArray(urls) ? urls[0] : urls;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { script.remove(); reject(new Error('加载超时')); }, 12000);
+    script.src = url;
+    script.onload = () => { clearTimeout(timer); resolve(); };
+    script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error('识别引擎未就绪，请联网准备离线包')); };
+    document.head.appendChild(script);
+  });
 }
 
 function loadTesseract() {
-  if (window.Tesseract) return Promise.resolve();
-  return loadScript([
-    'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
-    'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js'
-  ]);
+  return window.Tesseract ? Promise.resolve() : loadScript('./vendor/tesseract/tesseract.min.js');
 }
 
 async function runOcr() {
-  if (!capturedImage) {
-    showToast('请先拍照或选择图片');
-    return;
+  if (ocrBusy || processingBusy) return;
+  if (!capturedImage) { showToast('请先拍照或选择图片'); return; }
+  const snapshot = capturedImage;
+  ocrBusy = true; processingBusy = true;
+  document.getElementById('btnOcr').disabled = true;
+  showProcessing('正在识别题目', '图片留在本机，识别后可以核对修改');
+  try {
+    await checkOfflinePack();
+    if (!offlineReady) throw new Error('请先联网完成离线包准备');
+    // Default recording always stays on-device. Vision is an explicit secondary action.
+    const text = await runTesseractOcr(snapshot);
+    if (!text.trim()) { showToast('没有识别到文字。试试裁剪到一道题，或补充文字。'); showManualEntry(); return; }
+    lastOcrRaw = text;
+    saveImageSnapshot = snapshot;
+    openSaveModal(normalizeOcrText(text), guessSubject(text));
+  } catch (error) {
+    showToast('识别未完成：' + error.message);
+    document.getElementById('captureHint').textContent = '可以重试、裁剪图片，或先保存原图。';
+  } finally {
+    ocrBusy = false; processingBusy = false;
+    document.getElementById('btnOcr').disabled = false;
+    hideProcessing();
   }
-
-  const canUseAi = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
-  if (settings.useAiOcr && canUseAi) {
-    showProcessing('AI 视觉识别中', '正在分析图片文字');
-    try {
-      const aiText = await callVisionOcr(capturedImage);
-      if (aiText) {
-        hideProcessing();
-        openSaveModal(aiText, guessSubject(aiText));
-        return;
-      }
-      showToast('AI 未识别到文字，改用本地 OCR');
-    } catch (err) {
-      console.warn('AI OCR failed', err);
-      showToast('AI 识别失败，改用本地 OCR');
-    }
-  }
-
-  await runTesseractOcr();
 }
 
 async function callVisionOcr(dataUrl) {
   const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
   const headers = { 'Content-Type': 'application/json' };
   if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-  const res = await fetch(base + '/chat/completions', {
+  const res = await fetchWithTimeout(base + '/chat/completions', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -1389,32 +1351,29 @@ async function callVisionOcr(dataUrl) {
   return String(content || '').trim();
 }
 
-async function runTesseractOcr() {
-  showProcessing('OCR 识别中', '首次使用需加载识别引擎');
-  try {
-    await loadTesseract();
-    updateProcessing('识别文字中...', '');
-    const result = await Tesseract.recognize(capturedImage, settings.ocrLang || 'chi_sim+eng', {
-      logger: (m) => {
-        const pct = m.progress ? Math.round(m.progress * 100) + '%' : '';
-        if (m.status === 'loading tesseract core') updateProcessing('加载核心引擎...', pct);
-        if (m.status === 'loading language traineddata') updateProcessing('下载语言包...', pct);
-        if (m.status === 'recognizing text') updateProcessing('正在识别...', pct);
-      }
+async function runTesseractOcr(snapshot) {
+  await loadTesseract();
+  let timer;
+  const recognition = (async () => {
+    if (!ocrWorker) ocrWorker = await Tesseract.createWorker('chi_sim+eng', 1, {
+      workerPath: new URL('./vendor/tesseract/worker.min.js', location.href).href,
+      corePath: new URL('./vendor/tesseract/core/', location.href).href,
+      langPath: new URL('./vendor/tesseract/lang/', location.href).href,
+      workerBlobURL: false, cacheMethod: 'none',
+      logger: m => { if (ocrBusy && m.status === 'recognizing text') updateProcessing('正在识别题目', Math.round(m.progress * 100) + '%'); }
     });
-    hideProcessing();
-    const text = (result.data.text || '').trim();
-    if (!text) {
-      showToast('未识别到文字，请手动输入');
-      showManualEntry();
-      return;
-    }
-    openSaveModal(text, guessSubject(text));
-  } catch (err) {
-    hideProcessing();
-    showToast('OCR 失败：' + err.message);
-    showManualEntry();
-  }
+    await ocrWorker.setParameters({ user_defined_dpi: '300' });
+    const result = await ocrWorker.recognize(snapshot);
+    ocrCandidate = normalizeOcrText(await mathLineCandidates(snapshot, result.data, ocrWorker));
+    return result.data.text || '';
+  })();
+  try {
+    return await Promise.race([recognition, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('识别超时，请裁剪到一道题后重试')), 60000); })]);
+  } catch (error) {
+    const worker = ocrWorker; ocrWorker = null;
+    if (worker) await worker.terminate();
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 function showManualEntry() {
@@ -1460,20 +1419,20 @@ function guessSubject(text) {
 
 function openSaveModal(text, guessedSubject) {
   editingId = null;
+  saveImageSnapshot = capturedImage;
   const subject = guessedSubject || settings.subjects[0] || '数学';
   const topics = KNOWLEDGE_MAP[subject] || [];
   const html = `
     <div class="form-stack">
-      <div>
-        <label class="field-label">题目内容</label>
-        <textarea id="formText" rows="6">${escapeHtml(text)}</textarea>
-      </div>
+      ${saveImageSnapshot ? `<details class="source-image" open><summary>对照原图</summary><img class="detail-img" src="${imageHtml(saveImageSnapshot)}" alt="原始题目"></details>` : ''}
+      ${lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
       <div>
         <label class="field-label">科目</label>
         <select id="formSubject" onchange="fillTopicSelect(this.value)">
           ${SUBJECTS.map(s => `<option value="${s}" ${s === subject ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
+      <details class="optional-fields"><summary>补充知识点、错因和答案（选填）</summary>
       <div>
         <label class="field-label">知识点</label>
         <select id="formTopic">
@@ -1484,20 +1443,22 @@ function openSaveModal(text, guessedSubject) {
       <div>
         <label class="field-label">错因</label>
         <select id="formCause">
-          ${CAUSES.map(c => `<option value="${c}">${c}</option>`).join('')}
+          <option value="">稍后再标注</option>${CAUSES.map(c => `<option value="${c}">${c}</option>`).join('')}
         </select>
       </div>
       <div>
         <label class="field-label">答案 / 解析（选填）</label>
         <textarea id="formAnswer" rows="3" placeholder="答案或解析"></textarea>
       </div>
+      </details>
       <div class="modal-actions">
         <button class="btn outline" onclick="closeModal()">取消</button>
         <button class="btn primary" onclick="submitSaveForm()">保存错题</button>
       </div>
     </div>
   `;
-  openModal('保存错题', html);
+  openModal('核对并保存', html);
+  updateOcrDiff();
 }
 
 function fillTopicSelect(subject) {
@@ -1507,10 +1468,13 @@ function fillTopicSelect(subject) {
 }
 
 async function submitSaveForm() {
+  if (saveBusy) return;
+  saveBusy = true;
+  try {
   const text = document.getElementById('formText').value.trim();
   const subject = document.getElementById('formSubject').value;
   const topic = document.getElementById('formTopic').value;
-  const cause = document.getElementById('formCause').value || CAUSES[0];
+  const cause = document.getElementById('formCause').value || '';
   const answer = document.getElementById('formAnswer').value.trim();
   if (!text) {
     showToast('请输入题目内容');
@@ -1532,28 +1496,32 @@ async function submitSaveForm() {
       cause,
       text,
       answer,
-      image: capturedImage || '',
+      image: saveImageSnapshot ? await compressImage(saveImageSnapshot) : '',
+      ocrRaw: lastOcrRaw,
       status: 'new',
       reviewCount: 0,
       nextReviewAt: null,
       lastReviewedAt: null,
       analysis: null,
-      source: capturedImage ? 'camera' : 'manual',
+      source: saveImageSnapshot ? 'camera' : 'manual',
       createdAt: now,
       updatedAt: now
     };
     await storeAdd(item);
-    allErrors.unshift(item);
+    await loadErrors();
     capturedImage = null;
     retakeCapture();
     showToast('错题已保存');
   }
-  closeModal();
+  closeModal(true);
   updateHome();
   updateNavBadge();
   renderErrorList();
   document.getElementById('manualText').value = '';
   document.getElementById('manualEntry').classList.add('hidden');
+
+  } catch (error) { notifyFailure(error); }
+  finally { saveBusy = false; }
 }
 
 function openEditModal(id) {
@@ -1662,7 +1630,7 @@ function renderErrorList() {
   const container = document.getElementById('errorList');
   const filtered = getFilteredErrors();
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-title">暂无错题</div><div class="es-desc">换筛选条件试试</div></div>';
+    container.innerHTML = '<div class="empty-state"><div class="es-icon" aria-hidden="true">＋</div><div class="es-title">还没有找到题目</div><div class="es-desc">可以记一道新题，或调整筛选条件。</div></div>';
     return;
   }
   container.innerHTML = filtered.map(e => {
@@ -1671,7 +1639,7 @@ function renderErrorList() {
       : e.status === 'reviewing'
         ? '<span class="tag due">待复习</span>'
         : '<span class="tag due">待复盘</span>';
-    const aiTag = e.analysis ? '<span class="tag ai">AI</span>' : '';
+    const aiTag = e.analysis ? `<span class="tag ai">${e.analysis.source === 'ai' ? 'AI 复盘' : '规则生成'}</span>` : '';
     const causeTag = `<span class="tag">${escapeHtml(e.cause || '未标注错因')}</span>`;
     const selectHtml = batchMode
       ? `<label class="batch-check" onclick="event.stopPropagation()"><input type="checkbox" ${selectedIds.has(e.id) ? 'checked' : ''} onchange="toggleBatchSelect(${e.id}, this.checked)"></label>`
@@ -1787,7 +1755,7 @@ function openDetail(id) {
   const analysisBlock = e.analysis
     ? `
       <div class="modal-content-block">
-        <div class="section-title"><span>AI 复盘</span><button class="text-btn" onclick="generateAnalysis(${e.id}, true)">重新生成</button></div>
+        <div class="section-title"><span>${e.analysis.source === 'ai' ? 'AI 复盘' : '规则生成'}</span><button class="text-btn" onclick="generateAnalysis(${e.id}, true)">重新生成</button></div>
         <div class="analysis-block">${escapeHtml(e.analysis.analysis || '')}</div>
       </div>
       <div class="modal-content-block">
@@ -1802,8 +1770,8 @@ function openDetail(id) {
     `
     : `
       <div class="modal-content-block">
-        <div class="section-title"><span>AI 复盘</span></div>
-        <button class="btn teal full" onclick="generateAnalysis(${e.id}, false)">生成 AI 复盘</button>
+        <div class="section-title"><span>复盘笔记</span></div>
+        <button class="btn teal full" onclick="generateAnalysis(${e.id}, false)">生成复盘笔记</button>
       </div>
     `;
 
@@ -1817,7 +1785,7 @@ function openDetail(id) {
         </div>
       </div>
     </div>
-    ${e.image ? `<div class="modal-content-block"><img class="detail-img" src="${e.image}" alt="错题图片"></div>` : ''}
+    ${e.image ? `<div class="modal-content-block"><img class="detail-img" src="${imageHtml(e.image)}" alt="错题图片"></div>` : ''}
     <div class="modal-content-block">
       <div class="section-title"><span>题目</span></div>
       <div class="modal-text">${escapeHtml(e.text)}</div>
@@ -1833,7 +1801,7 @@ function openDetail(id) {
         <div class="section-title"><span>最近自测作答</span></div>
         <div class="modal-text">${escapeHtml(e.lastAttempt)}</div>
         ${e.attemptFeedback
-          ? `<div class="analysis-block" style="margin-top:8px">${escapeHtml(e.attemptFeedback.text)}</div>`
+          ? `<div class="analysis-block" style="margin-top:8px">${e.attemptFeedback.source === 'ai' ? 'AI 批改' : '规则生成'}：${escapeHtml(e.attemptFeedback.text)}</div>`
           : `<button class="btn teal full" style="margin-top:10px" onclick="gradeAttempt(${e.id})">AI 批改</button>`}
       </div>
     ` : ''}
@@ -1853,7 +1821,7 @@ function renderSimilar(e) {
   const done = e.analysis.similarDone || [];
   return `
     <div class="modal-content-block">
-      <div class="section-title"><span>举一反三</span></div>
+      <div class="section-title"><span>${e.analysis.source === 'ai' ? '举一反三' : '复习练习'}</span></div>
       <div class="similar-list">
         ${list.map((q, i) => `
           <button class="similar-item ${done.includes(i) ? 'done' : ''}" onclick="toggleSimilar(${e.id}, ${i})">
@@ -1890,10 +1858,10 @@ async function deleteError(id) {
 /* ===================== AI 复盘 ===================== */
 
 async function buildAnalysisForError(e) {
-  const configured = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
+  const configured = canUseAi();
   let result = null;
   let usedAi = false;
-  if (configured) {
+  if (configured && navigator.onLine) {
     try {
       result = await callAi(e);
       usedAi = true;
@@ -1908,25 +1876,34 @@ async function buildAnalysisForError(e) {
 }
 
 async function generateAnalysis(id, force) {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   const e = findError(id);
   if (!e) return;
   if (!force && e.analysis) {
     openDetail(id);
     return;
   }
-  showProcessing('AI 复盘生成中', '正在分析错因并生成练习建议');
+  showProcessing(navigator.onLine && canUseAi() ? 'AI 复盘生成中' : '整理复盘笔记', '请稍候');
   const { result, usedAi, configured } = await buildAnalysisForError(e);
-  if (configured && !usedAi) showToast('AI 调用失败，已使用离线模板');
-  if (!configured) showToast('未配置 AI，已使用离线模板');
+  if (configured && !usedAi) showToast('AI 调用失败，已使用规则生成');
+  if (!configured) showToast('已生成离线复盘模板');
   await storeUpdate(id, { analysis: result, updatedAt: new Date().toISOString() });
   e.analysis = result;
   hideProcessing();
   updateHome();
   renderErrorList();
   openDetail(id);
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function batchGenerateAnalysis() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   if (selectedIds.size === 0) {
     showToast('请先选择错题');
     return;
@@ -1938,11 +1915,11 @@ async function batchGenerateAnalysis() {
   const actions = document.getElementById('batchActions');
   if (actions) actions.classList.add('hidden');
   renderErrorList();
-  showProcessing('批量 AI 复盘', `0/${ids.length}`);
+  showProcessing('批量复盘', `0/${ids.length}`);
   for (let i = 0; i < ids.length; i++) {
     const e = findError(ids[i]);
     if (!e) continue;
-    updateProcessing('批量 AI 复盘', `${i + 1}/${ids.length}`);
+    updateProcessing('批量复盘', `${i + 1}/${ids.length}`);
     const { result } = await buildAnalysisForError(e);
     await storeUpdate(e.id, { analysis: result, updatedAt: new Date().toISOString() });
     e.analysis = result;
@@ -1952,25 +1929,31 @@ async function batchGenerateAnalysis() {
   updateNavBadge();
   renderErrorList();
   showToast('批量复盘完成');
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function gradeAttempt(id) {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   const e = findError(id);
   if (!e) return;
   if (!e.lastAttempt) {
     showToast('还没有自测作答');
     return;
   }
-  showProcessing('AI 批改中', '正在对照标准答案');
+  showProcessing(navigator.onLine && canUseAi() ? 'AI 批改中' : '记录自测作答', '请稍候');
   let feedback = null;
   let usedAi = false;
-  const configured = settings.aiEndpoint && (settings.aiKey || /localhost|127\.0\.0\.1/.test(settings.aiEndpoint));
-  if (configured) {
+  const configured = canUseAi();
+  if (configured && navigator.onLine) {
     try {
       const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
       const headers = { 'Content-Type': 'application/json' };
       if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-      const res = await fetch(base + '/chat/completions', {
+      const res = await fetchWithTimeout(base + '/chat/completions', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -2001,7 +1984,7 @@ async function gradeAttempt(id) {
     const a = String(e.answer || '').trim();
     const t = String(e.lastAttempt || '').trim();
     if (a && t && (a.includes(t) || t.includes(a))) {
-      feedback = '你的作答与标准答案基本一致，继续保持。';
+      feedback = '规则生成：已记录作答，请逐步对照标准答案检查；文字相似不能判断解题正确。';
     } else if (t) {
       feedback = '已记录你的作答。建议对照标准答案逐条检查步骤，标出遗漏或偏差的地方。';
     } else {
@@ -2016,6 +1999,9 @@ async function gradeAttempt(id) {
   await storeUpdate(id, { attemptFeedback: e.attemptFeedback, updatedAt: new Date().toISOString() });
   hideProcessing();
   openDetail(id);
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function callAi(e) {
@@ -2032,7 +2018,7 @@ async function callAi(e) {
   ];
   const headers = { 'Content-Type': 'application/json' };
   if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-  const res = await fetch(base + '/chat/completions', {
+  const res = await fetchWithTimeout(base + '/chat/completions', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -2056,6 +2042,9 @@ function extractJson(text) {
 }
 
 function normalizeAiResult(obj) {
+  if (!obj || typeof obj.analysis !== 'string' || !obj.analysis.trim() || typeof obj.solution !== 'string' || !obj.solution.trim()) {
+    throw new Error('AI 返回内容不完整');
+  }
   return {
     analysis: String(obj.analysis || ''),
     solution: String(obj.solution || ''),
@@ -2090,17 +2079,11 @@ function makeSimilarQuestions(e) {
     const all = bank.filter(q => q && q.question);
     const exact = all.filter(q => (!q.subject || q.subject === e.subject) && (!q.topic || q.topic === e.topic));
     const bySubject = all.filter(q => !q.subject || q.subject === e.subject);
-    const pool = Array.from(new Map([...exact, ...bySubject, ...all].map(q => [q.question, q])).values());
+    const pool = exact.filter(q => q.topic && q.topic === e.topic);
     const picked = pool.slice(0, 3).map(q => q.question);
     if (picked.length) return picked;
   }
-  const subject = e.subject;
-  if (subject === '数学') return ['已知函数 f(x)=x^2-2x，求单调区间。', '解方程 x^2-5x+6=0。', '数列 a(n+1)=a(n)+3，求第 10 项。'];
-  if (subject === '物理') return ['已知初速度和加速度，求 5 秒后的速度。', '分析斜面上物体的受力。', '已知电压和电阻，求电流。'];
-  if (subject === '英语') return ['根据上下文判断作者观点。', '选择正确时态完成句子。', '猜测划线单词的含义。'];
-  if (subject === '化学') return ['写出铁与稀盐酸反应的化学方程式。', '判断氧化还原反应中的氧化剂。', '计算 0.1 mol 溶液的物质的量浓度。'];
-  if (subject === '生物') return ['简述光合作用中暗反应的原料和产物。', '判断遗传系谱图的显隐性。', '说明酶催化作用的三个特点。'];
-  return ['提取题干关键信息并写出思路。', '改变一个条件后重新求解。', '说明最容易出错的一步。'];
+  return ['遮住答案，重做这道题并写出每一步理由。', '对照原题，说明哪些条件影响了解题方法。'];
 }
 
 /* ===================== 间隔复习 ===================== */
@@ -2154,7 +2137,7 @@ function showReviewItem() {
 
   const imgWrap = document.getElementById('reviewImage');
   if (item.image) {
-    imgWrap.innerHTML = `<img src="${item.image}" alt="错题图片">`;
+    imgWrap.innerHTML = `<img src="${imageHtml(item.image)}" alt="错题图片">`;
     imgWrap.classList.remove('hidden');
   } else {
     imgWrap.classList.add('hidden');
@@ -2171,8 +2154,13 @@ function toggleReviewAnswer() {
 }
 
 async function rateReview(grade) {
-  const item = reviewQueue[reviewIndex];
+  if (reviewBusy || !['again', 'good', 'easy'].includes(grade)) return;
+  const original = reviewQueue[reviewIndex];
+  const item = original ? { ...original } : null;
   if (!item) return;
+  reviewBusy = true;
+  document.querySelectorAll('#reviewActions button').forEach(b => b.disabled = true);
+  try {
   const draft = document.getElementById('reviewDraft').value.trim();
   const now = new Date();
   let interval = 1;
@@ -2205,12 +2193,16 @@ async function rateReview(grade) {
     lastAttempt: draft,
     updatedAt: now.toISOString()
   });
-  recordStudyDay();
-  recordDailyReview();
+  Object.assign(original, item);
+  try { recordStudyDay(); recordDailyReview(); } catch (_) { showToast('复习已保存，打卡统计未更新'); }
   reviewIndex++;
   updateHome();
   updateNavBadge();
   showReviewItem();
+  } catch (error) { notifyFailure(error); }
+  finally {
+    setTimeout(() => { reviewBusy = false; document.querySelectorAll('#reviewActions button').forEach(b => b.disabled = false); }, 400);
+  }
 }
 
 /* ===================== 设置 ===================== */
@@ -2282,6 +2274,9 @@ function readSyncSettings() {
 }
 
 async function syncUpload() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   readSyncSettings();
   if (!settings.syncToken) {
     showToast('请先填写 GitHub Token');
@@ -2323,47 +2318,29 @@ async function syncUpload() {
     hideProcessing();
     showToast('上传失败：' + err.message);
   }
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function syncPull(isAuto) {
-  readSyncSettings();
-  if (!settings.syncToken || !settings.syncGistId) {
-    if (!isAuto) showToast('请先填写 GitHub Token 和 Gist ID');
-    return;
-  }
-  if (!isAuto) showProcessing('恢复中', '正在从云端读取数据');
+  if (syncBusy) return;
+  if (!isAuto) readSyncSettings();
+  if (!settings.syncToken || !settings.syncGistId) { if (!isAuto) showToast('请先填写云同步设置'); return; }
+  syncBusy = true;
   try {
     const gist = await gistApi('https://api.github.com/gists/' + settings.syncGistId, 'GET');
     const file = gist.files && gist.files['error-collector-backup.json'];
-    if (!file || !file.content) throw new Error('云端没有找到备份数据');
+    if (!file || !file.content || file.truncated) throw new Error('备份不完整，请使用文件导入');
     const parsed = JSON.parse(file.content);
-    const items = Array.isArray(parsed) ? parsed : parsed.errors;
-    if (!Array.isArray(items)) throw new Error('云端数据格式不正确');
-    const cleaned = items.filter(x => x && x.text).map(x => Object.assign({}, x));
-
-    if (isAuto) {
-      await storeClear();
-      await storeBulkAdd(cleaned);
-    } else {
-      const merge = confirm('选择“确定”合并云端数据，选择“取消”替换本地数据。');
-      if (merge) {
-        cleaned.forEach(x => delete x.id);
-      } else {
-        await storeClear();
-      }
-      await storeBulkAdd(cleaned);
-    }
-    await loadErrors();
-    updateHome();
-    updateNavBadge();
-    renderErrorList();
-    if (!isAuto) hideProcessing();
-    showToast(`已恢复 ${cleaned.length} 条错题`);
-  } catch (err) {
-    if (!isAuto) hideProcessing();
-    if (!isAuto) showToast('恢复失败：' + err.message);
-    console.warn('sync pull failed', err);
-  }
+    const cleaned = normalizeRecords(Array.isArray(parsed) ? parsed : parsed.errors);
+    if (!isAuto && !confirm(`合并云端 ${cleaned.length} 道题？同一道题保留较新的版本。`)) return;
+    for (const item of cleaned) if (item.image) item.image = await compressImage(item.image);
+    await writeRecords(cleaned, 'merge');
+    await loadErrors(); updateHome(); updateNavBadge(); renderErrorList();
+    showToast('云端数据已合并');
+  } catch (error) { showToast('同步未完成，本地数据保留：' + error.message); }
+  finally { syncBusy = false; }
 }
 
 async function gistApi(url, method, body) {
@@ -2373,7 +2350,7 @@ async function gistApi(url, method, body) {
     'User-Agent': 'codex'
   };
   if (body) headers['Content-Type'] = 'application/json';
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -2415,7 +2392,7 @@ function exportPrintable() {
       ? `<h3>举一反三</h3><ol>${e.analysis.similar.map(q => `<li>${escapeHtml(q)}</li>`).join('')}</ol>`
       : '';
     const analysis = e.analysis
-      ? `<h3>AI 复盘</h3><p>${escapeHtml(e.analysis.analysis || '')}</p><h3>解题步骤</h3><p>${escapeHtml(e.analysis.solution || '')}</p>`
+      ? `<h3>${e.analysis.source === 'ai' ? 'AI 复盘' : '规则生成'}</h3><p>${escapeHtml(e.analysis.analysis || '')}</p><h3>解题步骤</h3><p>${escapeHtml(e.analysis.solution || '')}</p>`
       : '';
     const attempt = e.lastAttempt ? `<h3>最近自测作答</h3><p>${escapeHtml(e.lastAttempt)}</p>` : '';
     return `
@@ -2589,23 +2566,18 @@ async function onImportSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
   try {
+    if (file.size > 80000000) throw new Error('备份过大，请分批导入');
     const parsed = JSON.parse(await file.text());
-    const items = Array.isArray(parsed) ? parsed : parsed.errors;
-    if (!Array.isArray(items)) throw new Error('文件格式不正确');
-    const merge = confirm('选择“确定”合并导入；选择“取消”将替换现有数据。');
-    const cleaned = items.map(x => Object.assign({}, x)).filter(x => x && x.text);
-    if (merge) cleaned.forEach(x => delete x.id);
-    if (!merge) await storeClear();
-    await storeBulkAdd(cleaned);
-    await loadErrors();
-    updateHome();
-    updateNavBadge();
-    renderErrorList();
-    showToast(`已导入 ${cleaned.length} 条错题`);
-  } catch (err) {
-    showToast('导入失败：' + err.message);
-  }
-  event.target.value = '';
+    const cleaned = normalizeRecords(Array.isArray(parsed) ? parsed : parsed.errors);
+    const mode = await chooseImportMode(cleaned.length);
+    if (mode !== 'merge' && mode !== 'replace') return;
+    if (mode === 'replace' && !confirm(`将替换当前 ${allErrors.length} 道错题。建议先导出备份。确定替换？`)) return;
+    for (const item of cleaned) if (item.image) item.image = await compressImage(item.image);
+    await writeRecords(cleaned, mode);
+    await loadErrors(); updateHome(); updateNavBadge(); renderErrorList();
+    showToast(`已导入 ${cleaned.length} 道题`);
+  } catch (error) { showToast('导入失败：' + error.message); }
+  finally { event.target.value = ''; }
 }
 
 function getQuestionBank() {
@@ -2659,6 +2631,9 @@ function clearQuestionBank() {
 }
 
 async function uploadBankToCloud() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   settings.bankGistId = document.getElementById('bankGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
@@ -2695,9 +2670,15 @@ async function uploadBankToCloud() {
     hideProcessing();
     showToast('上传失败：' + err.message);
   }
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function pullBankFromCloud() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   settings.bankGistId = document.getElementById('bankGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
@@ -2709,7 +2690,7 @@ async function pullBankFromCloud() {
   try {
     const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'codex' };
     if (settings.syncToken) headers['Authorization'] = 'Bearer ' + settings.syncToken;
-    const res = await fetch('https://api.github.com/gists/' + settings.bankGistId, { headers });
+    const res = await fetchWithTimeout('https://api.github.com/gists/' + settings.bankGistId, { headers });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const gist = await res.json();
     const file = gist.files && gist.files['question-bank.json'];
@@ -2732,9 +2713,15 @@ async function pullBankFromCloud() {
     hideProcessing();
     showToast('拉取失败：' + err.message);
   }
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function uploadClassCloud() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
@@ -2772,9 +2759,15 @@ async function uploadClassCloud() {
     hideProcessing();
     showToast('上传失败：' + err.message);
   }
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 async function pullClassCloud() {
+  if (processingBusy) return;
+  processingBusy = true;
+  try {
   settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
@@ -2786,7 +2779,7 @@ async function pullClassCloud() {
   try {
     const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'codex' };
     if (settings.syncToken) headers['Authorization'] = 'Bearer ' + settings.syncToken;
-    const res = await fetch('https://api.github.com/gists/' + settings.classGistId, { headers });
+    const res = await fetchWithTimeout('https://api.github.com/gists/' + settings.classGistId, { headers });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const gist = await res.json();
     const file = gist.files && gist.files['class-summary.json'];
@@ -2809,6 +2802,9 @@ async function pullClassCloud() {
     hideProcessing();
     showToast('拉取失败：' + err.message);
   }
+
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; }
 }
 
 function copyBankShareLink() {
@@ -3078,14 +3074,7 @@ function exportStudentReport(name) {
 }
 
 function showClassQr() {
-  const link = `${location.origin}${location.pathname}#parent-report`;
-  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(link)}`;
-  openModal('班级报告二维码', `
-    <div style="text-align:center">
-      <img src="${qr}" alt="班级报告二维码" style="width:260px;max-width:82%;border-radius:8px">
-      <div class="report-note">扫码查看</div>
-    </div>
-  `);
+  showToast('班级数据保存在本机，请导出报告后分享');
 }
 
 function exportClassSummary() {
@@ -3165,7 +3154,7 @@ function exportFullBackup() {
     bank: getQuestionBank(),
     classData: getClassData(),
     snapshots: getClassSnapshots(),
-    settings,
+    settings: { ...settings, aiKey: '', syncToken: '' },
     studyDays: getStudyDays(),
     daily
   };
@@ -3188,36 +3177,42 @@ async function onBackupSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
   try {
+    if (file.size > 80000000) throw new Error('备份过大');
     const parsed = JSON.parse(await file.text());
-    if (!parsed.errors && !parsed.bank && !parsed.classData) {
-      throw new Error('不是完整的备份文件');
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.errors)) throw new Error('备份缺少错题数组');
+    const records = normalizeRecords(parsed.errors);
+    const nextSettings = parsed.settings ? normalizeSettings(parsed.settings, true) : settings;
+    const values = {};
+    const arrays = { bank: LS_BANK, snapshots: LS_CLASS_SNAPSHOTS, studyDays: LS_STUDY_DAYS };
+    for (const [key, storageKey] of Object.entries(arrays)) {
+      if (key in parsed) { if (!Array.isArray(parsed[key])) throw new Error(key + ' 必须是数组'); values[storageKey] = JSON.stringify(parsed[key]); }
     }
-    if (!confirm('导入将替换当前数据，确定继续吗？')) return;
-    if (Array.isArray(parsed.errors)) {
-      await storeClear();
-      await storeBulkAdd(parsed.errors.filter(x => x && x.text));
+    if (parsed.studyDays && parsed.studyDays.some(x => typeof x !== 'string')) throw new Error('学习日期格式错误');
+    if (parsed.bank && parsed.bank.some(x => !x || typeof x.question !== 'string')) throw new Error('题库格式错误');
+    for (const [key, storageKey] of Object.entries({ classData: LS_CLASS, daily: LS_DAILY })) {
+      if (key in parsed) { if (!parsed[key] || typeof parsed[key] !== 'object' || Array.isArray(parsed[key])) throw new Error(key + ' 必须是对象'); values[storageKey] = JSON.stringify(parsed[key]); }
     }
-    if (Array.isArray(parsed.bank)) localStorage.setItem(LS_BANK, JSON.stringify(parsed.bank));
-    if (parsed.classData && typeof parsed.classData === 'object') localStorage.setItem(LS_CLASS, JSON.stringify(parsed.classData));
-    if (Array.isArray(parsed.snapshots)) localStorage.setItem(LS_CLASS_SNAPSHOTS, JSON.stringify(parsed.snapshots));
-    if (parsed.settings && typeof parsed.settings === 'object') {
-      settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings);
-      persistSettings();
-      applyTheme();
-      fillSettingsForm();
+    if (parsed.classData) for (const entries of Object.values(parsed.classData)) normalizeRecords(entries);
+    if (parsed.daily && Object.values(parsed.daily).some(x => !Number.isInteger(x) || x < 0)) throw new Error('复习次数格式错误');
+    if (parsed.snapshots && parsed.snapshots.some(x => !x || typeof x.date !== 'string' || !x.students || typeof x.students !== 'object')) throw new Error('班级快照格式错误');
+    values[LS_SETTINGS] = JSON.stringify(nextSettings);
+    if (!confirm('恢复完整备份将替换当前数据。继续？')) return;
+    if (!confirm(`最后确认：用备份中的 ${records.length} 道题替换本地 ${allErrors.length} 道题？`)) return;
+    for (const item of records) if (item.image) item.image = await compressImage(item.image);
+    const previous = Object.fromEntries(Object.keys(values).map(key => [key, localStorage.getItem(key)]));
+    try {
+      const writeExtras = () => { for (const [key, value] of Object.entries(values)) localStorage.setItem(key, value); };
+      if (db) await db.transaction('rw', db.errors, async () => { await db.errors.clear(); await db.errors.bulkAdd(records); writeExtras(); });
+      else { writeExtras(); await writeRecords(records, 'replace'); }
+    } catch (error) {
+      for (const [key, value] of Object.entries(previous)) { if (value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
+      throw error;
     }
-    if (Array.isArray(parsed.studyDays)) localStorage.setItem(LS_STUDY_DAYS, JSON.stringify(parsed.studyDays));
-    if (parsed.daily && typeof parsed.daily === 'object') localStorage.setItem(LS_DAILY, JSON.stringify(parsed.daily));
-    await loadErrors();
-    updateHome();
-    updateNavBadge();
-    renderErrorList();
-    renderSubjectSettings();
+    settings = nextSettings; applyTheme(); fillSettingsForm();
+    await loadErrors(); updateHome(); updateNavBadge(); renderErrorList(); renderSubjectSettings(); renderSubjectChips();
     showToast('完整备份已恢复');
-  } catch (err) {
-    showToast('恢复失败：' + err.message);
-  }
-  event.target.value = '';
+  } catch (error) { showToast('恢复失败：' + error.message); }
+  finally { event.target.value = ''; }
 }
 
 function getClassSnapshots() {
@@ -3276,7 +3271,7 @@ function openClassCompare() {
     `;
   }).join('');
   const html = `
-    <div class="report-note">${prev.date} → ${curr.date}</div>
+    <div class="report-note">${escapeHtml(prev.date)} → ${escapeHtml(curr.date)}</div>
     <div class="report-block">${rows}</div>
   `;
   openModal('班级对比', html);
@@ -3401,7 +3396,8 @@ function openModal(title, html) {
   document.getElementById('modalOverlay').classList.add('show');
 }
 
-function closeModal() {
+function closeModal(force = false) {
+  if (saveBusy && !force) return;
   document.getElementById('modalOverlay').classList.remove('show');
   currentDetailId = null;
   editingId = null;

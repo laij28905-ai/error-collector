@@ -201,7 +201,7 @@
   }
 
   function rotate(dir) {
-    if (!capturedImage) return;
+    if (!capturedImage || ocrBusy) return;
     var img = new Image();
     img.onload = function () {
       var w = img.naturalWidth, h = img.naturalHeight;
@@ -222,12 +222,12 @@
   }
 
   function openCropModal() {
-    if (!capturedImage) return;
+    if (!capturedImage || ocrBusy) return;
     if (typeof window.openModal !== 'function') return;
     cropModalOpen = true;
     window.openModal('裁剪与校正', [
       '<div class="crop-stage" id="cropStage">',
-      '  <img id="cropImg" src="' + capturedImage + '" alt="裁剪区域">',
+      '  <img id="cropImg" src="' + imageHtml(capturedImage) + '" alt="裁剪区域">',
       '  <div class="crop-frame" id="cropFrame">',
       '    <span class="cf-handle cf-nw"></span><span class="cf-handle cf-n"></span><span class="cf-handle cf-ne"></span>',
       '    <span class="cf-handle cf-w"></span><span class="cf-handle cf-e"></span>',
@@ -267,8 +267,8 @@
       if (typeof window.showToast === 'function') window.showToast('裁剪区域无效');
       return;
     }
-    var outW = Math.max(600, Math.round(S.frameW * 2));
-    var outH = Math.max(450, Math.round(outW * srcH / srcW));
+    var outW = Math.min(2400, Math.max(600, Math.round(srcW)));
+    var outH = Math.max(1, Math.round(outW * srcH / srcW));
     var canvas = document.createElement('canvas');
     canvas.width = outW;
     canvas.height = outH;

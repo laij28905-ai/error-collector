@@ -25,6 +25,8 @@
     ph.setAttribute('data-album-ok', '1');
     ph.style.cursor = 'pointer';
     ph.setAttribute('role', 'button');
+    ph.tabIndex = 0;
+    ph.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAlbum(); } });
     ph.setAttribute('aria-label', '从相册选择图片');
     ph.addEventListener('click', openAlbum);
     if (!ph.querySelector('.pl-hint')) {
@@ -49,7 +51,7 @@
 
   function init() {
     enhancePlaceholder();
-    addQuickCard();
+    // Primary album entry lives in the home capture card.
     // 重拍(retake)会重建占位图，用 MutationObserver 持续生效
     var preview = document.getElementById('capturePreview');
     if (preview && typeof MutationObserver !== 'undefined') {

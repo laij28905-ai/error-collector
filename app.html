@@ -2,18 +2,18 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#f3f5f9">
-<meta name="description" content="轻量化AI高中错题个性化学习助手 - 拍照录入、AI复盘、间隔复习、离线可用">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#f7f8f4">
+<meta name="description" content="高中错题助手：离线拍照记题，联网理解与练习。">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234353c8'/%3E%3Ctext x='32' y='42' font-size='30' text-anchor='middle' fill='white'%3E%E9%94%99%3C/text%3E%3C/svg%3E">
 <title>错题助手</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<div id="processingOverlay" class="processing-overlay">
+<div id="processingOverlay" class="processing-overlay" role="status" aria-live="polite">
   <div class="processing-box">
     <div class="spinner"></div>
     <div class="proc-title" id="procTitle">处理中</div>
@@ -31,96 +31,57 @@
   </header>
 
   <main id="appContent" class="app-content">
+    <div id="storageNotice" class="notice warning hidden" role="alert"></div>
+    <div id="updateNotice" class="notice hidden">新版本已准备好。<button class="text-btn" onclick="applyUpdate()">保存后更新</button></div>
+    <div id="offlinePanel" class="offline-panel">
+      <span class="status-dot" aria-hidden="true"></span><span id="offlineStatus">检查离线识别包…</span>
+      <button id="prepareOffline" class="text-btn" onclick="prepareOffline()">准备 / 重试</button>
+      <details class="offline-info"><summary aria-label="离线使用说明">说明</summary><div><p>首次联网准备完成后，这台设备可以断网识别。演示时请保持相同浏览器和地址。</p><p id="offlineAddress"></p><button class="text-btn" onclick="checkOfflinePack()">重新检查</button></div></details>
+    </div>
     <!-- 首页 -->
     <section id="page-home" class="page active">
       <div class="home-hero">
-        <div>
-          <p class="eyebrow" id="todayLabel">今天</p>
-          <h2 id="homeGreeting">整理一道错题</h2>
-          <span id="streakBadge" class="streak-badge">&#128293; 0 天</span>
-        </div>
-        <button class="icon-btn add-btn" onclick="goCapture()" aria-label="录入错题">&#43;</button>
+        <div><p class="eyebrow" id="todayLabel">今天</p><h2 id="homeGreeting">把不会的，慢慢学会。</h2></div>
+        <span id="streakBadge" class="streak-badge">从一道题开始</span>
       </div>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <b id="statTotal">0</b>
-          <span>全部错题</span>
+      <div class="entry-card">
+        <div class="entry-copy"><span class="kicker">你的随身错题本</span><h3>拍下来，<br>留给下一次进步。</h3><p>断网也能识别、记录。<br>连上网，再让 AI 帮你理清思路。</p>
+          <div class="entry-actions"><button class="btn primary" onclick="goCapture()">记一道错题 <span aria-hidden="true">↗</span></button><button class="text-btn" onclick="uploadImage()">从相册选择</button></div>
         </div>
-        <div class="stat-card accent">
-          <b id="statDue">0</b>
-          <span>今日待复习</span>
-        </div>
-        <div class="stat-card teal">
-          <b id="statMastered">0</b>
-          <span>已掌握</span>
-        </div>
+        <div class="notebook-art" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span class="paper-index">MATH / 01</span><div class="paper-formula">f(x) = x² − 2x</div><div class="paper-line"></div><div class="paper-line short"></div><span class="paper-mark">再试一次，就近了一点。</span><span class="paper-check">✓</span></div></div>
       </div>
-
-      <div class="section-block">
-        <div class="section-title">
-          <span>今日复习</span>
-          <span id="dailyProgressText" class="daily-text">0/3</span>
-        </div>
+      <div id="todayReview" class="today-card">
+        <div class="section-title"><span>今天，温习一下</span><span class="tiny-label">REVIEW</span></div>
+        <div class="due-number"><b id="statDue">0</b><span>道题待复习</span></div>
+        <div class="section-title daily-label"><span>今日目标</span><span id="dailyProgressText" class="daily-text">0/3</span></div>
         <div class="progress-track"><div id="dailyProgressFill" class="progress-fill"></div></div>
+        <button class="btn full outline" onclick="navigateTo('review')">开始复习 <span aria-hidden="true">→</span></button>
       </div>
-
-      <div class="section-block">
-        <div class="section-title">
-          <span>薄弱知识点</span>
-          <button class="text-btn" onclick="openMasteryTrend()">掌握趋势</button>
-          <button class="text-btn" onclick="openStudyPlan()">学习计划</button>
-          <button class="text-btn" onclick="openWeeklyPlan()">周计划</button>
-          <button class="text-btn" onclick="openWeeklyReport()">本周报告</button>
-        </div>
-        <div id="weakList" class="weak-list"></div>
-      </div>
-
-      <div class="quick-grid">
-        <button class="quick-card" onclick="navigateTo('capture')">
-          <span class="qc-icon">&#128247;</span>
-          <span class="qc-title">拍照录入</span>
-        </button>
-        <button class="quick-card" onclick="navigateTo('review')">
-          <span class="qc-icon">&#129504;</span>
-          <span class="qc-title">开始复习</span>
-        </button>
-        <button class="quick-card" onclick="navigateTo('book')">
-          <span class="qc-icon">&#128218;</span>
-          <span class="qc-title">错题本</span>
-        </button>
-        <button class="quick-card" onclick="navigateTo('profile')">
-          <span class="qc-icon">&#9881;</span>
-          <span class="qc-title">AI 设置</span>
-        </button>
-      </div>
-
-      <div class="section-block">
-        <div class="section-title">
-          <span>最近录入</span>
-          <button class="text-btn" onclick="navigateTo('book')">查看全部</button>
-        </div>
-        <div id="recentList" class="recent-list"></div>
+      <div class="stats-grid compact-stats"><div class="stat-card"><b id="statTotal">0</b><span>已记录</span></div><div class="stat-card"><b id="statMastered">0</b><span>已掌握</span></div><button class="stat-report" onclick="showParentReport()"><span>本周学习记录</span><span aria-hidden="true">↗</span></button></div>
+      <div class="section-block home-recent"><div class="section-title"><span>最近记下的题</span><button class="text-btn" onclick="navigateTo('book')">全部错题 →</button></div><div id="recentList" class="recent-list"></div></div>
+      <div class="section-block home-insights"><div class="section-title"><span>值得再看一遍</span><button class="text-btn" onclick="openWeeklyReport()">周报</button></div><div id="weakList" class="weak-list"></div>
+        <details class="more-tools"><summary>更多学习工具</summary><div class="quick-grid"><button class="quick-card" onclick="openMasteryTrend()">掌握趋势</button><button class="quick-card" onclick="openStudyPlan()">学习计划</button><button class="quick-card" onclick="openWeeklyPlan()">周计划</button><button class="quick-card" onclick="openAiSettings()">AI 设置</button><button class="quick-card" onclick="openSubjectBoard()">学情看板</button></div></details>
       </div>
     </section>
 
     <!-- 拍照录入 -->
     <section id="page-capture" class="page">
+      <div class="page-intro"><p class="eyebrow">CAPTURE</p><h2>先把题目记下来。</h2><p id="captureHint">一次拍一道题，文字清晰，识别更准。</p></div>
       <div id="capturePreview" class="capture-preview">
         <div class="placeholder">
-          <div class="pl-icon">&#128247;</div>
-          <div class="pl-text">拍照或选择图片</div>
+          <div class="capture-glyph" aria-hidden="true">＋</div>
+          <div class="pl-text">放进一道想弄懂的题</div>
         </div>
       </div>
       <div class="capture-actions">
-        <button id="btnCamera" class="btn primary" onclick="startCamera()">&#128247; 拍照</button>
-        <button id="btnAlbum" class="btn" onclick="uploadImage()">&#128444; 相册</button>
-        <button id="btnPaste" class="btn" onclick="pasteClipboardImage()">&#128203; 粘贴</button>
-        <button id="btnCrop" class="btn hidden" onclick="openCropModal()">&#9986; 裁剪</button>
-        <button id="btnOcr" class="btn teal hidden" onclick="runOcr()">&#129302; 识别文字</button>
-        <button id="btnRetake" class="btn hidden" onclick="retakeCapture()">&#128260; 重拍</button>
+        <button id="btnCamera" class="btn primary" onclick="startCamera()">拍照</button>
+        <button id="btnAlbum" class="btn" onclick="uploadImage()">选择图片</button>
+        <button id="btnPaste" class="btn" onclick="pasteClipboardImage()">粘贴图片</button>
+        <button id="btnCrop" class="btn hidden" onclick="openCropModal()">裁剪</button>
+        <button id="btnOcr" class="btn teal hidden" onclick="runOcr()">识别并记录</button>
+        <button id="btnRetake" class="btn hidden" onclick="retakeCapture()">重新选择</button>
       </div>
-      <button class="btn outline full" onclick="showManualEntry()">&#9999; 手动输入</button>
+      <div class="capture-secondary"><button class="text-btn" onclick="showManualEntry()">直接输入文字</button><button id="saveImageOnly" class="text-btn hidden" onclick="openImageOnly()">先保存原图</button></div>
 
       <div id="manualEntry" class="manual-entry hidden">
         <label class="field-label" for="manualText">题目内容</label>
@@ -130,7 +91,7 @@
     </section>
 
     <!-- 错题本 -->
-    <section id="page-book" class="page">
+    <section id="page-book" class="page"><div class="page-intro"><p class="eyebrow">COLLECTION</p><h2>每一道，都有收获。</h2></div>
       <div class="search-row">
         <input id="searchInput" type="search" placeholder="搜索题目或知识点" oninput="setQuery(this.value)">
       </div>
@@ -183,15 +144,15 @@
         </div>
       </div>
       <div id="reviewActions" class="review-actions hidden">
-        <button class="btn" onclick="toggleReviewAnswer()">&#128065; 答案</button>
+        <button class="btn" onclick="toggleReviewAnswer()">查看答案</button>
         <button class="btn red" onclick="rateReview('again')">再练</button>
         <button class="btn amber" onclick="rateReview('good')">还行</button>
         <button class="btn green" onclick="rateReview('easy')">熟练</button>
       </div>
       <div id="reviewEmpty" class="empty-state hidden">
-        <div class="es-icon">&#127881;</div>
+        <div class="es-icon">✓</div>
         <div class="es-title">今日完成</div>
-        <div class="es-desc">已清空</div>
+        <div class="es-desc">今天的复习告一段落，明天再来。</div>
       </div>
     </section>
 
@@ -200,18 +161,16 @@
       <div class="profile-header">
         <div class="profile-avatar">TF</div>
         <div>
-          <div class="profile-name">Team Future</div>
-          <div class="profile-team">华中科技大学 · 创客训练营</div>
+          <div class="profile-name">按你的习惯来</div>
+          <div class="profile-team">识别与记录留在本机 · AI 联网使用</div>
         </div>
       </div>
 
-      <div class="section-block">
-        <div class="section-title">学习科目</div>
+      <details class="settings-panel"><summary>学习科目</summary>
         <div class="chip-wrap" id="subjectSettings"></div>
-      </div>
+      </details>
 
-      <div class="section-block">
-        <div class="section-title">应用设置</div>
+      <details class="settings-panel"><summary>应用设置</summary>
         <div class="form-card">
           <label class="switch-row">
             <span>打开应用直达拍照页</span>
@@ -225,17 +184,16 @@
           <input id="dailyGoal" type="number" min="0" max="20" placeholder="3">
           <button class="btn primary full" onclick="saveSettings()">保存设置</button>
         </div>
-      </div>
+      </details>
 
-      <div class="section-block">
-        <div class="section-title">云同步</div>
+      <details class="settings-panel"><summary>云同步</summary>
         <div class="form-card">
           <label class="field-label" for="syncToken">GitHub Token</label>
           <input id="syncToken" type="password" placeholder="用于同步私人 Gist">
           <label class="field-label" for="syncGistId">Gist ID（留空自动创建）</label>
           <input id="syncGistId" type="text" placeholder="首次上传后自动生成">
           <label class="switch-row">
-            <span>启动时自动从云端恢复</span>
+            <span>启动时合并云端数据</span>
             <input id="autoSync" type="checkbox">
           </label>
           <label class="field-label" for="bankGistId">题库 Gist ID</label>
@@ -248,19 +206,18 @@
           <button class="btn teal full" onclick="uploadClassCloud()">上传班级汇总到云端</button>
           <button class="btn outline full" onclick="pullClassCloud()">拉取班级汇总</button>
           <button class="btn primary full" onclick="syncUpload()">上传到云端</button>
-          <button class="btn outline full" onclick="syncPull(false)">从云端恢复</button>
+          <button class="btn outline full" onclick="syncPull(false)">合并云端数据</button>
         </div>
-      </div>
+      </details>
 
-      <div class="section-block">
-        <div class="section-title">AI 服务</div>
+      <details class="settings-panel" id="aiSettings"><summary>AI 服务</summary>
         <div class="form-card">
           <label class="field-label" for="aiEndpoint">接口地址</label>
           <input id="aiEndpoint" type="text" placeholder="https://api.openai.com/v1">
           <label class="field-label" for="aiModel">模型</label>
           <input id="aiModel" type="text" placeholder="gpt-4o-mini">
           <label class="switch-row">
-            <span>优先使用 AI 视觉识别</span>
+            <span>允许手动 AI 视觉复核（需填写 Key，题图会发送到接口）</span>
             <input id="useAiOcr" type="checkbox">
           </label>
           <label class="field-label" for="ocrModel">视觉识别模型</label>
@@ -269,10 +226,9 @@
           <input id="aiKey" type="password" placeholder="留空则使用离线模板">
           <button class="btn primary full" onclick="saveSettings()">保存设置</button>
         </div>
-      </div>
+      </details>
 
-      <div class="section-block">
-        <div class="section-title">数据</div>
+      <details class="settings-panel"><summary>数据</summary>
         <div class="menu-card">
           <button class="menu-item" onclick="exportData()">
             <span class="mi-icon">&#128228;</span>
@@ -304,7 +260,7 @@
           </button>
           <button class="menu-item" onclick="copyParentReportLink()">
             <span class="mi-icon">&#128101;</span>
-            <span>复制家长周报链接</span>
+            <span>复制家长周报文本</span>
           </button>
           <button class="menu-item" onclick="copyWeeklyReportText()">
             <span class="mi-icon">&#128203;</span>
@@ -312,7 +268,7 @@
           </button>
           <button class="menu-item" onclick="copyClassReportLink()">
             <span class="mi-icon">&#127979;</span>
-            <span>复制班级报告链接</span>
+            <span>导出班级报告</span>
           </button>
           <button class="menu-item" onclick="openSubjectBoard()">
             <span class="mi-icon">&#128200;</span>
@@ -355,46 +311,45 @@
             <span>清空数据</span>
           </button>
         </div>
-      </div>
+      </details>
 
-      <div class="section-block">
-        <div class="section-title">关于</div>
+      <details class="settings-panel"><summary>关于</summary>
         <div class="menu-card">
           <div class="menu-item static">
             <span class="mi-icon">&#8505;</span>
-            <span>v3.38 · Team Future</span>
+            <span>演示版 · Team Future</span>
           </div>
         </div>
-      </div>
+      </details>
     </section>
   </main>
 
-  <nav class="app-nav">
+  <nav class="app-nav" aria-label="主导航"><div class="nav-brand"><span class="brand-mark">错</span><b>错题助手</b><small>留住问题，学会方法。</small></div>
     <button class="nav-item active" data-page="home" onclick="navigateTo('home')">
-      <span class="nav-icon">&#127968;</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg>
       <small>首页</small>
     </button>
     <button class="nav-item" data-page="capture" onclick="navigateTo('capture')">
-      <span class="nav-icon">&#128247;</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="m8 6 1-3h6l1 3"/><circle cx="12" cy="13" r="4"/></svg>
       <small>录入</small>
     </button>
     <button class="nav-item" data-page="book" onclick="navigateTo('book')">
-      <span class="nav-icon">&#128218;</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5c-3-2-7-2-10-1v16c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v16"/></svg>
       <small>错题本</small>
       <span id="navBadge" class="nav-badge hidden">0</span>
     </button>
     <button class="nav-item" data-page="review" onclick="navigateTo('review')">
-      <span class="nav-icon">&#129504;</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a9 9 0 1 1 0 8M4 3v5h5"/><path d="M12 7v6l4 2"/></svg>
       <small>复习</small>
     </button>
     <button class="nav-item" data-page="profile" onclick="navigateTo('profile')">
-      <span class="nav-icon">&#128100;</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
       <small>我的</small>
     </button>
   </nav>
 </div>
 
-<div id="modalOverlay" class="modal-overlay">
+<div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal-sheet">
     <div class="modal-head">
       <h3 id="modalTitle"></h3>
@@ -404,6 +359,7 @@
   </div>
 </div>
 
+<dialog id="importDialog" class="import-dialog"><form method="dialog"><h3>导入错题</h3><p id="importSummary"></p><p class="field-help">合并保留本地题目，同一道题采用较新版本。</p><div class="import-choices"><button class="btn primary" value="merge">合并导入</button><button class="btn outline" value="replace">替换本地…</button><button class="btn" value="cancel" autofocus>取消</button></div></form></dialog>
 <input id="fileInput" type="file" accept="image/*" hidden>
 <input id="importInput" type="file" accept=".json,application/json" hidden>
 <input id="bankInput" type="file" accept=".json,application/json" hidden>
@@ -411,7 +367,11 @@
 <input id="backupInput" type="file" accept=".json,application/json" hidden>
 
 <script src="vendor/dexie.min.js"></script>
+<script src="ocr-assets.js"></script>
+<script src="js/reliability.js"></script>
+<script src="js/ocr-review.js"></script>
 <script src="js/app.js"></script>
+<script src="js/offline.js"></script>
 <script src="js/album-enhance.js"></script>
 <script src="js/crop-enhance.js"></script>
 </body>
