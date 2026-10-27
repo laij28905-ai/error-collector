@@ -1,0 +1,50 @@
+[
+  {
+    "path": "app.html",
+    "sha256": "7234aa6b9d4f931dfb2cd61477a8aba48188cdbdefa725713d9a452794afe23f"
+  },
+  {
+    "path": "styles.css",
+    "sha256": "1be2d1578a10ed2202bcdc96a439a9dfa334c7fcab94a153fccdd7553b473c81"
+  },
+  {
+    "path": "sw.js",
+    "sha256": "1661b461135cb8cafa53341d9cc8473c6eeec37d2df73a18f307ea65336fd7f7"
+  },
+  {
+    "path": "ocr-assets.js",
+    "sha256": "e4f78a6835a051661c13df5b1ce919fd25ccb1a9c62e34a0b9a92cbe13a829d6"
+  },
+  {
+    "path": "js/app.js",
+    "sha256": "084795046f01caf532244aba1ce3d7e5091bfeed83f0ae866628397a9cc2e07e"
+  },
+  {
+    "path": "js/reliability.js",
+    "sha256": "870c80124d52b73acf51084fb036a5b1fdedb805444edf4b00662f352b70ee87"
+  },
+  {
+    "path": "js/ocr-review.js",
+    "sha256": "71054164f81da27f17d0b0040f86056a11c9adeed7ce7202890253191f0a01ec"
+  },
+  {
+    "path": "js/offline.js",
+    "sha256": "158b9044d2c58d4859ff6a1d815f47cce85141a50cc1ce1916c4fbe6cdddcdf3"
+  },
+  {
+    "path": "js/album-enhance.js",
+    "sha256": "8a30fc18dc1cad742ff9f31e0b0ef7c645cb0d12d3c8f467e7102665fdf3a0ee"
+  },
+  {
+    "path": "js/crop-enhance.js",
+    "sha256": "29e88f67eccff9543d62b360fe5bf60c16d448d2ad831c87bbb2a0a5d38b6bb8"
+  },
+  {
+    "path": "tests/acceptance.cjs",
+    "sha256": "d5c503507b952c1830988d28831889c82aafff7675885bde9f7143fbb0125d08"
+  },
+  {
+    "path": "tests/unit.cjs",
+    "sha256": "97f45ed618f28cf4baa0c22e968dd20bb7783b34661c111b52a1bc86a57d9621"
+  }
+]

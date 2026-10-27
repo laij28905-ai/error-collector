@@ -1,0 +1,22 @@
+HTTP_SERVER_READY {"pid":86060,"port":54780}
+PASS Fresh install verifies all 12 offline resources
+COMMAND: taskkill.exe /PID 86060 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 86060 (child process of PID 90732) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+COLD_START_REMOTE_REQUESTS: 0
+COLD_START_OCR_TEXT: {"raw":"已 知 一 辆 汽 车 从 静 止 开 始 做 匀 加 速 直 线 运 动 。\n加 速 度 为 2 米 每 秒 平 方 , 求 5 秒 后 的 速 度 。\n","normalized":"已 知 一 辆 汽 车 从 静 止 开 始 做 匀 加 速 直 线 运 动 。\n加 速 度 为 2 米 每 秒 平 方 , 求 5 秒 后 的 速 度 。"}
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert(text.normalized.includes('汽车') && text.normalized.includes('加速度'))
+
+    at C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:102:5
+    at async test (C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:51:29)
+    at async C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:91:3 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
