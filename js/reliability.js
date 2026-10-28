@@ -1,8 +1,8 @@
 /* Small shared guards for the existing app. No runtime dependencies. */
 function canUseAi() {
   try {
-    const url = new URL(settings.aiEndpoint);
-    return ['http:', 'https:'].includes(url.protocol) && (!!settings.aiKey || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
+    aiConfig();
+    return true;
   } catch (_) { return false; }
 }
 

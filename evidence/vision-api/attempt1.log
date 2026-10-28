@@ -1,0 +1,23 @@
+HTTP_SERVER_READY {"pid":108744,"port":59201}
+PASS Fresh install verifies all 12 offline resources
+COMMAND: taskkill.exe /PID 108744 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 108744 (child process of PID 116696) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+COLD_START_REMOTE_REQUESTS: 0
+COLD_START_OCR_TEXT: {"raw":"已 知 一 辆 汽 车 从 静 止 开 始 做 匀 加 速 直 线 运 动 。\n加 速 度 为 2 米 每 秒 平 方 , 求 5 秒 后 的 速 度 。\n","normalized":"已知一辆汽车从静止开始做匀加速直线运动 。\n加速度为 2 米每秒平方，求 5 秒后的速度 。"}
+COLD_START_SAVED: {"count":1,"id":1,"imageBytes":49491}
+PASS Cold browser restart offline, no OCR warm-up recognition
+PASS Five pages, three rounds: no console errors
+PASS Import cancel and replace confirmation cancel preserve exact data
+PASS Invalid backup subjects rejected before writing
+PASS Replacement write failure rolls back clear and leaves all records
+PASS Five analysis runs including two storage exceptions always release overlay
+PASS Repeated review click records one rating and does not skip next question
+PASS Automatic sync merges newer timestamps without deleting local-only records
+FORMULA_CORRECTION_UI: {"roiLines":2,"marks":16,"modalScrollable":true,"accepted":true,"rawPreserved":"已 知 函 数 f(W) = x? - 2x + 1, 求 最 小 值 。\n当 x > 0 时 , 求 y(x + 1) 的 取 值 范 围 。\n计 算 积 分 x dx,\n","visionDefaultHidden":true}
+HTTP_SERVER_READY {"pid":109740,"port":59201}
+TypeError: sent.messages[1].content.some is not a function
+    at C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:223:37
+    at async test (C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:57:29)
+    at async C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:204:3

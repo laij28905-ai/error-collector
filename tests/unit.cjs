@@ -2,8 +2,9 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const context = vm.createContext({ console, document:{addEventListener(){}}, window:{}, setTimeout, clearTimeout });
+const context = vm.createContext({ console, URL, document:{addEventListener(){}}, window:{}, setTimeout, clearTimeout });
 vm.runInContext(fs.readFileSync('js/reliability.js','utf8'),context);
+vm.runInContext(fs.readFileSync('js/ai-client.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/app.js','utf8'),context);
 const run=code=>JSON.parse(JSON.stringify(vm.runInContext(code,context)));
 const samples = [
@@ -28,3 +29,12 @@ assert.equal(merged.length,3);assert.equal(merged[0].text,'本地较新');assert
 assert.equal(run(`mergeRecords(${JSON.stringify(merged)},normalizeRecords(${JSON.stringify(incoming)})).length`),3);
 assert.equal(run(`mergeRecords(${JSON.stringify(local)},normalizeRecords([{syncId:'same',text:'云端新版',updatedAt:'2026-10-28'}]))[0].text`),'云端新版');
 console.log('PASS: 5 OCR normalization pairs; unsafe/invalid input rejected; newer-wins merge, ID collision and repeat-import checks.');
+assert.equal(run('aiBaseUrl("https://api.example.com/v1/chat/completions/")'),'https://api.example.com/v1');
+for(const address of ['http://api.example.com','https://user:secret@api.example.com','https://api.example.com?key=secret','https://{WorkspaceId}.example.com']) assert.throws(()=>run(`aiBaseUrl(${JSON.stringify(address)})`));
+assert.throws(()=>run('aiConfig({aiEndpoint:"https://api.example.com",aiModel:"vision",aiKey:""})'),/Key/);
+assert.equal(run('aiUserContent("题目","data:image/png;base64,YQ==")[1].image_url.url'),'data:image/png;base64,YQ==');
+assert.throws(()=>run('aiUserContent("题目","https://example.com/tracker.png")'),/题图/);
+assert.equal(run('aiResponseText({choices:[{message:{content:[{type:"text",text:"答案"}]}}]})'),'答案');
+assert.throws(()=>run('aiResponseText({choices:[{message:{content:""}}]})'),/有效内容/);
+assert.throws(()=>run('aiResponseText({choices:[{message:{content:"未完成"},finish_reason:"length"}]})'),/截断/);
+console.log('PASS: AI URL/key validation, image payload, multipart and invalid-response handling.');

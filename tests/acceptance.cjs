@@ -7,14 +7,20 @@ const {fork,spawnSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..'), output=path.join(root,'test-results');
 fs.mkdirSync(output,{recursive:true});
 const results=[], errors=[];
-let revision=false,apiMode='success',browser,server,serverChild,serverPort;
+let revision=false,apiMode='success',lastAiRequest=null,browser,server,serverChild,serverPort;
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.json':'application/json','.wasm':'application/wasm','.gz':'application/gzip','.png':'image/png'};
 server=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://localhost');
+  if(url.pathname==='/mock-ai/last-request'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(lastAiRequest));return;}
   if(url.pathname==='/mock-ai/chat/completions'){
+    let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{
+    lastAiRequest=JSON.parse(body);
     if(apiMode==='fail'){res.writeHead(503);res.end('Unavailable');return;}
+    if(apiMode==='unauthorized'){res.writeHead(401);res.end('Unauthorized');return;}
     res.setHeader('Content-Type','application/json');
-    res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({analysis:'检查配方法中的常数项。',solution:'f(x)=(x−1)²，最小值为 0。',similar:['求 g(x)=x²−4x+5 的最小值。'],advice:'明天再做一次。'})}}]}));return;
+    const prompt=JSON.stringify(lastAiRequest.messages);
+    const content=prompt.includes('四位数字')?(apiMode==='vision-pass'?'1234':'无法读取'):prompt.includes('只返回题目文字')?'已知函数 f(x)=x²，求 f(2)。':JSON.stringify({analysis:'检查配方法中的常数项。',solution:'f(x)=(x−1)²，最小值为 0。',similar:['求 g(x)=x²−4x+5 的最小值。'],advice:'明天再做一次。'});
+    res.end(JSON.stringify({choices:[{message:{content}}]}));});return;
   }
   if(url.pathname==='/slow-body'){res.writeHead(200,{'Content-Type':'application/json'});res.write('{');return;}
   let name=decodeURIComponent(url.pathname).replace(/^\/sub\//,'/');
@@ -24,7 +30,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('personal-v1','acceptance-v3'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('vision-api-v1','acceptance-v3'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -197,11 +203,38 @@ if(process.argv.includes('--serve')) {
   await page.evaluate(()=>{closeModal();retakeCapture()});
   await test('Online AI response and failed-network template fallback',async()=>{
     await startServer(serverPort);
+    await page.evaluate(()=>{navigateTo('profile');document.getElementById('aiSettings').open=true;document.getElementById('aiKey').value='previous-provider-key';document.getElementById('aiProvider').value='deepseek';chooseAiService()});
+    assert.equal(await page.locator('#aiKey').inputValue(),'');
+    assert.equal(await page.locator('#aiModel').inputValue(),'deepseek-flash');
+    await page.evaluate(endpoint=>{document.getElementById('aiEndpoint').value=endpoint;document.getElementById('aiModel').value='mock-vision';document.getElementById('aiKey').value='';},base+'/mock-ai');
+    await page.evaluate(()=>testAiVision());
+    assert((await page.locator('#aiTestStatus').textContent()).includes('未正确读出'));
+    serverChild.send({apiMode:'vision-pass'});await page.waitForTimeout(100);
+    await page.evaluate(async()=>{
+      // Deterministic synthetic image for the local mock; never a real service call.
+      const original=crypto.getRandomValues;
+      crypto.getRandomValues=array=>{array.set([1,2,3,4]);return array};
+      try{await testAiVision()}finally{crypto.getRandomValues=original}
+    });
+    assert((await page.locator('#aiTestStatus').textContent()).includes('识图测试通过'));
+    await page.evaluate(()=>saveSettings());
+    await page.locator('#aiSettings').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(output,'ai-settings-375x812.png'),animations:'disabled'});
+    await page.evaluate(()=>navigateTo('capture'));
+    await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
+    await page.locator('#btnAiCapture').click();await page.waitForFunction(()=>!ocrBusy);
+    assert((await page.locator('#formText').inputValue()).includes('f(x)=x²'));
+    await page.evaluate(()=>{closeModal();retakeCapture()});
     await page.evaluate(endpoint=>{settings.aiEndpoint=endpoint;settings.aiKey=''},base+'/mock-ai');
-    await page.evaluate(()=>generateAnalysis(allErrors[0].id,true));
-    assert.equal(await page.evaluate(()=>allErrors[0].analysis.source),'ai');
-    serverChild.send({apiMode:'fail'});await page.waitForTimeout(100);await page.evaluate(()=>generateAnalysis(allErrors[0].id,true));
-    assert.equal(await page.evaluate(()=>allErrors[0].analysis.source),'template');
+    await page.evaluate(()=>generateAnalysis(allErrors.find(e=>e.image).id,true));
+    assert.equal(await page.evaluate(()=>allErrors.find(e=>e.image).analysis.source),'ai');
+    const sent=await page.evaluate(async()=>{const r=await fetch('./mock-ai/last-request');return r.json()});
+    assert(sent.messages[1].content.some(x=>x.type==='image_url'&&x.image_url.url.startsWith('data:image/')));
+    console.log('AI_VISION_PAYLOAD: image attached; provider key cleared on switch; incorrect vision probe rejected; capture OCR opened editor');
+    serverChild.send({apiMode:'unauthorized'});await page.waitForTimeout(100);
+    await page.evaluate(()=>testAiVision());assert((await page.locator('#aiTestStatus').textContent()).includes('Key 无效'));
+    serverChild.send({apiMode:'fail'});await page.waitForTimeout(100);await page.evaluate(()=>generateAnalysis(allErrors.find(e=>e.image).id,true));
+    assert.equal(await page.evaluate(()=>allErrors.find(e=>e.image).analysis.source),'template');
     await page.evaluate(()=>{closeModal();settings.aiEndpoint='';});
   });
   await test('Network timeout covers a stalled response body',async()=>{

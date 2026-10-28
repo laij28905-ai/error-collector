@@ -30,12 +30,12 @@ const SUBJECT_ICON = {
 const DEFAULT_SETTINGS = {
   subjects: ['数学', '物理', '化学', '生物', '英语'],
   aiEndpoint: 'https://api.openai.com/v1',
-  aiModel: 'gpt-4o-mini',
+  aiModel: 'gpt-4.1-mini',
   aiKey: '',
   ocrLang: 'chi_sim+eng',
   openCaptureOnLaunch: false,
   useAiOcr: false,
-  ocrModel: 'gpt-4o-mini',
+  ocrModel: 'gpt-4.1-mini',
   syncToken: '',
   syncGistId: '',
   autoSync: false,
@@ -1022,6 +1022,7 @@ function showCapturedImage() {
   document.getElementById('btnAlbum').classList.remove('hidden');
   document.getElementById('btnCrop').classList.remove('hidden');
   document.getElementById('btnOcr').classList.remove('hidden');
+  document.getElementById('btnAiCapture').classList.remove('hidden');
   document.getElementById('btnRetake').classList.remove('hidden');
 }
 
@@ -1036,6 +1037,7 @@ function retakeCapture() {
   document.getElementById('btnCamera').onclick = startCamera;
   document.getElementById('btnCrop').classList.add('hidden');
   document.getElementById('btnOcr').classList.add('hidden');
+  document.getElementById('btnAiCapture').classList.add('hidden');
   document.getElementById('btnRetake').classList.add('hidden');
   document.getElementById('manualEntry').classList.add('hidden');
 }
@@ -1298,38 +1300,8 @@ async function runOcr() {
 }
 
 async function callVisionOcr(dataUrl) {
-  const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
-  const headers = { 'Content-Type': 'application/json' };
-  if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-  const res = await fetchWithTimeout(base + '/chat/completions', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: settings.ocrModel || settings.aiModel || DEFAULT_SETTINGS.ocrModel,
-      temperature: 0,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: '请识别这张高中错题图片中的全部题目文字。只输出识别到的文字，不要解释，不要添加答案。'
-            },
-            {
-              type: 'image_url',
-              image_url: { url: dataUrl }
-            }
-          ]
-        }
-      ]
-    })
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-  return String(content || '').trim();
+  return requestAi([{ role: 'user', content: aiUserContent('请识别这道高中题的题干、选项与公式。保留小题编号；不能看清的内容标记【不清晰】，不要猜测。只返回题目文字，不要解答。', dataUrl) }]);
 }
-
 async function runTesseractOcr(snapshot) {
   await loadTesseract();
   let timer;
@@ -1840,18 +1812,20 @@ async function buildAnalysisForError(e) {
   const configured = canUseAi();
   let result = null;
   let usedAi = false;
+  let failure = '';
   if (configured && navigator.onLine) {
     try {
       result = await callAi(e);
       usedAi = true;
     } catch (err) {
+      failure = err.message;
       console.warn('AI call failed', err);
     }
   }
   if (!result) result = localAnalysis(e);
   result.source = usedAi ? 'ai' : 'template';
   result.generatedAt = new Date().toISOString();
-  return { result, usedAi, configured };
+  return { result, usedAi, configured, failure };
 }
 
 async function generateAnalysis(id, force) {
@@ -1865,8 +1839,8 @@ async function generateAnalysis(id, force) {
     return;
   }
   showProcessing(navigator.onLine && canUseAi() ? 'AI 复盘生成中' : '整理复盘笔记', '请稍候');
-  const { result, usedAi, configured } = await buildAnalysisForError(e);
-  if (configured && !usedAi) showToast('AI 调用失败，已使用规则生成');
+  const { result, usedAi, configured, failure } = await buildAnalysisForError(e);
+  if (configured && !usedAi) showToast((failure || '当前离线') + '；本次使用规则生成');
   if (!configured) showToast('已生成离线复盘模板');
   await storeUpdate(id, { analysis: result, updatedAt: new Date().toISOString() });
   e.analysis = result;
@@ -1929,32 +1903,11 @@ async function gradeAttempt(id) {
   const configured = canUseAi();
   if (configured && navigator.onLine) {
     try {
-      const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
-      const headers = { 'Content-Type': 'application/json' };
-      if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-      const res = await fetchWithTimeout(base + '/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: settings.aiModel || DEFAULT_SETTINGS.aiModel,
-          temperature: 0.2,
-          messages: [
-            {
-              role: 'system',
-              content: '你是高中错题批改老师。根据题目、标准答案和学生作答，用中文给出简短批改意见：先判断是否正确，再指出关键偏差和修改建议。'
-            },
-            {
-              role: 'user',
-              content: `题目：${e.text}\n标准答案：${e.answer || '未记录'}\n学生作答：${e.lastAttempt}`
-            }
-          ]
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        feedback = String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '').trim();
-        usedAi = !!feedback;
-      }
+      feedback = await requestAi([
+        { role: 'system', content: '你是高中错题辅导老师。结合原题和学生作答给出可核对的反馈；没有标准答案或题图不清晰时明确说明，不假装已判定正确。' },
+        { role: 'user', content: aiUserContent(`题目：${e.text}\n记录的答案：${e.answer || '未记录'}\n学生作答：${e.lastAttempt}`, e.image) }
+      ]);
+      usedAi = true;
     } catch (err) {
       console.warn('AI grading failed', err);
     }
@@ -1984,34 +1937,12 @@ async function gradeAttempt(id) {
 }
 
 async function callAi(e) {
-  const base = String(settings.aiEndpoint || '').replace(/\/+$/, '');
   const messages = [
-    {
-      role: 'system',
-      content: '你是高中错题辅导老师。根据题目给出中文 JSON，字段为 analysis（错因分析，150字内）、solution（分步骤解题思路）、similar（3道相似练习题，每题一句）、advice（复习安排建议）。只返回 JSON 对象。'
-    },
-    {
-      role: 'user',
-      content: `学科：${e.subject}\n知识点：${e.topic || '未分类'}\n错因：${e.cause || '未标注'}\n题目：${e.text}\n${e.answer ? '已知答案/解析：' + e.answer : '暂未记录答案'}`
-    }
+    { role: 'system', content: '你是高中错题辅导老师。结合原题图片与文字讲解，OCR文字可能有误，以清晰原图为依据；看不清时明确要求补图，不编造条件。没有学生解题过程时不要断言具体错因。只返回中文JSON对象：analysis（知识点和关键思路）、solution（可核对的解题步骤）、similar（3道同知识点的新练习，每项为题目字符串，条件完整，不附答案）、advice（复习建议）。' },
+    { role: 'user', content: aiUserContent(`科目：${e.subject}\n知识点：${e.topic || '未分类'}\n错因记录：${e.cause || '未标注'}\n题目文字：${e.text}\n已记录答案：${e.answer || '未记录'}`, e.image) }
   ];
-  const headers = { 'Content-Type': 'application/json' };
-  if (settings.aiKey) headers['Authorization'] = 'Bearer ' + settings.aiKey;
-  const res = await fetchWithTimeout(base + '/chat/completions', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: settings.aiModel || DEFAULT_SETTINGS.aiModel,
-      temperature: 0.3,
-      messages
-    })
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-  return normalizeAiResult(extractJson(content));
+  return normalizeAiResult(extractJson(await requestAi(messages)));
 }
-
 function extractJson(text) {
   let t = String(text || '').replace(/```json|```/gi, '').trim();
   const start = t.indexOf('{');
@@ -2207,11 +2138,13 @@ function toggleSubjectSetting(subject) {
 }
 
 function saveSettings() {
+  try {
+  if (document.getElementById('aiKey').value.trim()) aiFormConfig();
   settings.aiEndpoint = document.getElementById('aiEndpoint').value.trim();
   settings.aiModel = document.getElementById('aiModel').value.trim();
   settings.aiKey = document.getElementById('aiKey').value.trim();
   settings.useAiOcr = document.getElementById('useAiOcr').checked;
-  settings.ocrModel = document.getElementById('ocrModel').value.trim();
+  settings.ocrModel = settings.aiModel;
   settings.openCaptureOnLaunch = document.getElementById('openCaptureOnLaunch').checked;
   settings.darkMode = document.getElementById('darkMode').checked;
   settings.syncToken = document.getElementById('syncToken').value.trim();
@@ -2221,6 +2154,7 @@ function saveSettings() {
   persistSettings();
   applyTheme();
   showToast('设置已保存');
+  } catch (error) { notifyFailure(error); }
 }
 
 function fillSettingsForm() {
@@ -2228,7 +2162,7 @@ function fillSettingsForm() {
   document.getElementById('aiModel').value = settings.aiModel || '';
   document.getElementById('aiKey').value = settings.aiKey || '';
   document.getElementById('useAiOcr').checked = !!settings.useAiOcr;
-  document.getElementById('ocrModel').value = settings.ocrModel || '';
+  fillAiServiceForm();
   document.getElementById('openCaptureOnLaunch').checked = !!settings.openCaptureOnLaunch;
   document.getElementById('darkMode').checked = !!settings.darkMode;
   document.getElementById('syncToken').value = settings.syncToken || '';

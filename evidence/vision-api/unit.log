@@ -1,0 +1,2 @@
+PASS: 5 OCR normalization pairs; unsafe/invalid input rejected; newer-wins merge, ID collision and repeat-import checks.
+PASS: AI URL/key validation, image payload, multipart and invalid-response handling.

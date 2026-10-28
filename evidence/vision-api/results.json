@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-28T05:14:10.689Z",
+  "results": [
+    {
+      "name": "Fresh install verifies all 12 offline resources",
+      "status": "passed"
+    },
+    {
+      "name": "Cold browser restart offline, no OCR warm-up recognition",
+      "status": "passed"
+    },
+    {
+      "name": "Five pages, three rounds: no console errors",
+      "status": "passed"
+    },
+    {
+      "name": "Import cancel and replace confirmation cancel preserve exact data",
+      "status": "passed"
+    },
+    {
+      "name": "Invalid backup subjects rejected before writing",
+      "status": "passed"
+    },
+    {
+      "name": "Replacement write failure rolls back clear and leaves all records",
+      "status": "passed"
+    },
+    {
+      "name": "Five analysis runs including two storage exceptions always release overlay",
+      "status": "passed"
+    },
+    {
+      "name": "Repeated review click records one rating and does not skip next question",
+      "status": "passed"
+    },
+    {
+      "name": "Automatic sync merges newer timestamps without deleting local-only records",
+      "status": "passed"
+    },
+    {
+      "name": "Synthetic formula OCR output (not real-photo correction acceptance)",
+      "status": "recorded",
+      "correct": [],
+      "raw": "已 知 函 数 f(W) = x? - 2x + 1, 求 最 小 值 。\n当 x > 0 时 , 求 y(x + 1) 的 取 值 范 围 。\n计 算 积 分 x dx,\n",
+      "normalized": "已知函数 f(W) = x? - 2x + 1, 求最小值 。\n当 x > 0 时，求 y(x + 1) 的取值范围 。\n计算积分 x dx,"
+    },
+    {
+      "name": "Online AI response and failed-network template fallback",
+      "status": "passed"
+    },
+    {
+      "name": "Network timeout covers a stalled response body",
+      "status": "passed"
+    },
+    {
+      "name": "SW update waits for action and retains independent OCR cache",
+      "status": "passed"
+    },
+    {
+      "name": "Offline non-navigation request returns error, not HTML",
+      "status": "passed"
+    },
+    {
+      "name": "IndexedDB unavailable: visible fallback and successful local save",
+      "status": "passed"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "Failed to load resource: the server responded with a status of 503 ()"
+  ],
+  "notes": "AI responses are local fixtures, not a live paid API. Physical camera not tested."
+}

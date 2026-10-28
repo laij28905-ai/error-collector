@@ -79,6 +79,7 @@
         <button id="btnPaste" class="btn" onclick="pasteClipboardImage()">粘贴图片</button>
         <button id="btnCrop" class="btn hidden" onclick="openCropModal()">裁剪</button>
         <button id="btnOcr" class="btn teal hidden" onclick="runOcr()">识别并记录</button>
+        <button id="btnAiCapture" class="btn hidden" onclick="runAiCapture()">AI 识图（联网）</button>
         <button id="btnRetake" class="btn hidden" onclick="retakeCapture()">重新选择</button>
       </div>
       <div class="capture-secondary"><button class="text-btn" onclick="showManualEntry()">直接输入文字</button><button id="saveImageOnly" class="text-btn hidden" onclick="openImageOnly()">先保存原图</button></div>
@@ -203,18 +204,23 @@
 
       <details class="settings-panel" id="aiSettings"><summary>AI 接口（选用，需自行配置）</summary>
         <div class="form-card">
+          <p class="field-help">在这里配置一次，识图、解题和举一反三都在本应用内完成。使用 AI 时，题图和文字会发送到所填服务，费用由该服务收取。</p>
+          <label class="field-label" for="aiProvider">模型服务</label>
+          <select id="aiProvider" onchange="chooseAiService()"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="gemini">Google Gemini</option><option value="qwen">通义千问 · 百炼</option><option value="custom">其他 OpenAI 兼容服务</option></select>
+          <p id="aiProviderHint" class="field-help"></p>
           <label class="field-label" for="aiEndpoint">接口地址</label>
-          <input id="aiEndpoint" type="text" placeholder="https://api.openai.com/v1">
-          <label class="field-label" for="aiModel">模型</label>
-          <input id="aiModel" type="text" placeholder="gpt-4o-mini">
+          <input id="aiEndpoint" type="url" placeholder="服务商提供的 Base URL" oninput="resetAiTest(true)">
+          <label class="field-label" for="aiModel">识图模型名称</label>
+          <input id="aiModel" type="text" placeholder="请填写支持图片输入的模型" oninput="resetAiTest()">
           <label class="switch-row">
-            <span>允许手动 AI 视觉复核（需填写 Key，题图会发送到接口）</span>
+            <span>在核对页显示“AI 视觉复核”按钮</span>
             <input id="useAiOcr" type="checkbox">
           </label>
-          <label class="field-label" for="ocrModel">视觉识别模型</label>
-          <input id="ocrModel" type="text" placeholder="gpt-4o-mini">
           <label class="field-label" for="aiKey">API Key</label>
-          <input id="aiKey" type="password" placeholder="未配置时使用规则生成">
+          <input id="aiKey" type="password" autocomplete="off" placeholder="只保存在当前浏览器，不随备份导出" oninput="resetAiTest()">
+          <button id="testAiVision" class="btn outline full" onclick="testAiVision()">测试连接与识图（会产生少量用量）</button>
+          <p id="aiTestStatus" class="field-help" role="status">尚未验证当前配置的识图能力。</p>
+          <p class="field-help">只支持允许浏览器直接访问的接口；识图测试成功后仍需核对解题结果。</p>
           <button class="btn primary full" onclick="saveSettings()">保存设置</button>
         </div>
       </details>
@@ -320,6 +326,7 @@
 <script src="vendor/dexie.min.js"></script>
 <script src="ocr-assets.js"></script>
 <script src="js/reliability.js"></script>
+<script src="js/ai-client.js"></script>
 <script src="js/ocr-review.js"></script>
 <script src="js/app.js"></script>
 <script src="js/offline.js"></script>
