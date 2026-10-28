@@ -186,7 +186,7 @@
         </div>
       </details>
 
-      <details class="settings-panel"><summary>云同步</summary>
+      <details class="settings-panel"><summary>个人云同步（选用）</summary>
         <div class="form-card">
           <label class="field-label" for="syncToken">GitHub Token</label>
           <input id="syncToken" type="password" placeholder="用于同步私人 Gist">
@@ -196,21 +196,12 @@
             <span>启动时合并云端数据</span>
             <input id="autoSync" type="checkbox">
           </label>
-          <label class="field-label" for="bankGistId">题库 Gist ID</label>
-          <input id="bankGistId" type="text" placeholder="老师分享的题库 Gist ID">
-          <button class="btn teal full" onclick="uploadBankToCloud()">上传题库到云端</button>
-          <button class="btn outline full" onclick="pullBankFromCloud()">拉取云端题库</button>
-          <button class="btn outline full" onclick="copyBankShareLink()">复制题库分享链接</button>
-          <label class="field-label" for="classGistId">班级汇总 Gist ID</label>
-          <input id="classGistId" type="text" placeholder="用于同步班级数据">
-          <button class="btn teal full" onclick="uploadClassCloud()">上传班级汇总到云端</button>
-          <button class="btn outline full" onclick="pullClassCloud()">拉取班级汇总</button>
           <button class="btn primary full" onclick="syncUpload()">上传到云端</button>
           <button class="btn outline full" onclick="syncPull(false)">合并云端数据</button>
         </div>
       </details>
 
-      <details class="settings-panel" id="aiSettings"><summary>AI 服务</summary>
+      <details class="settings-panel" id="aiSettings"><summary>AI 接口（选用，需自行配置）</summary>
         <div class="form-card">
           <label class="field-label" for="aiEndpoint">接口地址</label>
           <input id="aiEndpoint" type="text" placeholder="https://api.openai.com/v1">
@@ -238,18 +229,6 @@
             <span class="mi-icon">&#128229;</span>
             <span>导入数据</span>
           </button>
-          <button class="menu-item" onclick="importQuestionBank()">
-            <span class="mi-icon">&#128194;</span>
-            <span>导入题库</span>
-          </button>
-          <button class="menu-item" onclick="exportQuestionBank()">
-            <span class="mi-icon">&#128228;</span>
-            <span>导出题库</span>
-          </button>
-          <button class="menu-item danger" onclick="clearQuestionBank()">
-            <span class="mi-icon">&#128465;</span>
-            <span>清空题库</span>
-          </button>
           <button class="menu-item" onclick="exportPrintable()">
             <span class="mi-icon">&#128424;</span>
             <span>导出打印版</span>
@@ -266,33 +245,9 @@
             <span class="mi-icon">&#128203;</span>
             <span>复制周报文本</span>
           </button>
-          <button class="menu-item" onclick="copyClassReportLink()">
-            <span class="mi-icon">&#127979;</span>
-            <span>导出班级报告</span>
-          </button>
           <button class="menu-item" onclick="openSubjectBoard()">
             <span class="mi-icon">&#128200;</span>
             <span>学情看板</span>
-          </button>
-          <button class="menu-item" onclick="importStudentData()">
-            <span class="mi-icon">&#128101;</span>
-            <span>导入学生数据</span>
-          </button>
-          <button class="menu-item" onclick="openClassSummary()">
-            <span class="mi-icon">&#127891;</span>
-            <span>班级汇总</span>
-          </button>
-          <button class="menu-item" onclick="saveClassSnapshot()">
-            <span class="mi-icon">&#128190;</span>
-            <span>保存班级快照</span>
-          </button>
-          <button class="menu-item" onclick="openClassCompare()">
-            <span class="mi-icon">&#128200;</span>
-            <span>班级对比</span>
-          </button>
-          <button class="menu-item" onclick="openProgressBoard()">
-            <span class="mi-icon">&#127942;</span>
-            <span>学生进步榜</span>
           </button>
           <button class="menu-item" onclick="exportFullBackup()">
             <span class="mi-icon">&#128190;</span>
@@ -301,10 +256,6 @@
           <button class="menu-item" onclick="importFullBackup()">
             <span class="mi-icon">&#128190;</span>
             <span>导入完整备份</span>
-          </button>
-          <button class="menu-item danger" onclick="clearClassData()">
-            <span class="mi-icon">&#128465;</span>
-            <span>清空班级数据</span>
           </button>
           <button class="menu-item danger" onclick="clearAllData()">
             <span class="mi-icon">&#128465;</span>

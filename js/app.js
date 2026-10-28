@@ -290,30 +290,9 @@ function applyInitialHash() {
     showParentReport();
     return;
   }
-  if (raw === 'class-report') {
-    openClassSummary();
-    return;
-  }
-  if (raw.startsWith('bank-gist-')) {
-    const gid = raw.slice('bank-gist-'.length);
-    if (gid) {
-      settings.bankGistId = gid;
-      persistSettings();
-      const el = document.getElementById('bankGistId');
-      if (el) el.value = gid;
-      showToast('已识别题库 Gist ID，可到“我的 → 云同步”拉取');
-    }
-    return;
-  }
-  if (raw.startsWith('class-gist-')) {
-    const gid = raw.slice('class-gist-'.length);
-    if (gid) {
-      settings.classGistId = gid;
-      persistSettings();
-      const el = document.getElementById('classGistId');
-      if (el) el.value = gid;
-      showToast('已识别班级汇总 Gist ID，可到“我的 → 云同步”拉取');
-    }
+  if (raw === 'class-report' || raw.startsWith('bank-gist-') || raw.startsWith('class-gist-')) {
+    navigateTo('profile');
+    showToast('轻量版已移除班级和共享题库入口，历史数据仍可完整备份');
     return;
   }
   const target = raw;
@@ -2238,8 +2217,6 @@ function saveSettings() {
   settings.syncToken = document.getElementById('syncToken').value.trim();
   settings.syncGistId = document.getElementById('syncGistId').value.trim();
   settings.autoSync = document.getElementById('autoSync').checked;
-  settings.bankGistId = document.getElementById('bankGistId').value.trim();
-  settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.dailyGoal = Math.max(0, Math.min(20, Number(document.getElementById('dailyGoal').value) || 0));
   persistSettings();
   applyTheme();
@@ -2257,8 +2234,6 @@ function fillSettingsForm() {
   document.getElementById('syncToken').value = settings.syncToken || '';
   document.getElementById('syncGistId').value = settings.syncGistId || '';
   document.getElementById('autoSync').checked = !!settings.autoSync;
-  document.getElementById('bankGistId').value = settings.bankGistId || '';
-  document.getElementById('classGistId').value = settings.classGistId || '';
   document.getElementById('dailyGoal').value = settings.dailyGoal || 0;
 }
 
@@ -2634,7 +2609,6 @@ async function uploadBankToCloud() {
   if (processingBusy) return;
   processingBusy = true;
   try {
-  settings.bankGistId = document.getElementById('bankGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
   const bank = getQuestionBank();
@@ -2679,7 +2653,6 @@ async function pullBankFromCloud() {
   if (processingBusy) return;
   processingBusy = true;
   try {
-  settings.bankGistId = document.getElementById('bankGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
   if (!settings.bankGistId) {
@@ -2722,7 +2695,6 @@ async function uploadClassCloud() {
   if (processingBusy) return;
   processingBusy = true;
   try {
-  settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
   const obj = getClassData();
@@ -2768,7 +2740,6 @@ async function pullClassCloud() {
   if (processingBusy) return;
   processingBusy = true;
   try {
-  settings.classGistId = document.getElementById('classGistId').value.trim();
   settings.syncToken = document.getElementById('syncToken').value.trim();
   persistSettings();
   if (!settings.classGistId) {

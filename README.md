@@ -1,5 +1,7 @@
 # 轻量化AI高中错题个性化学习助手
 
+个人轻量版已移除班级管理、学生数据、共享题库及其云端操作入口；原有历史数据和完整备份兼容能力保留，不清空用户数据。下文涉及班级/题库的内容仅记录历史功能，当前个人界面不再提供这些入口。个人错题备份和选用的云同步继续保留。AI 接口是选用项；DeepSeek 官方 App/网页聊天不等于可由本应用免费调用的 API，本版尚未实现 App 间题目传递。
+
 工作副本：`C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector`。旧副本已改名为 `highschool-error-notebook-ARCHIVE-只读`，README 首行标记“非工作副本”，文件设置为只读；不再用于开发。
 
 本轮收口记录与实测证据见 [evidence/closeout/README.md](evidence/closeout/README.md)。公式识别仍需要人工核对，五张真实题图的纠错耗时、真机和软键盘遮挡尚未验收。

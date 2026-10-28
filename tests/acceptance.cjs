@@ -24,7 +24,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('closeout-v2','acceptance-v3'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('personal-v1','acceptance-v3'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -116,6 +116,10 @@ if(process.argv.includes('--serve')) {
   });
   await test('Five pages, three rounds: no console errors',async()=>{
     for(let n=0;n<3;n++)for(const name of ['home','capture','book','review','profile'])await page.locator(`[data-page="${name}"]`).click();
+    assert(!/班级|题库|学生进步榜/.test(await page.locator('#page-profile').textContent()));
+    await page.evaluate(()=>{settings.bankGistId='legacy-bank';settings.classGistId='legacy-class';fillSettingsForm();saveSettings()});
+    assert.equal(await page.evaluate(()=>settings.bankGistId),'legacy-bank');
+    assert.equal(await page.evaluate(()=>settings.classGistId),'legacy-class');
     assert.deepEqual(errors,[]);
   });
   await test('Import cancel and replace confirmation cancel preserve exact data',async()=>{
