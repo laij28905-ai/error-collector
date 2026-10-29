@@ -20,36 +20,42 @@
     stageW: 0, stageH: 0
   };
   var drag = null;
+  var sourceImage = '';
+  var rotating = false;
 
   function injectStyle() {
     if (document.getElementById('cropEnhanceStyle')) return;
     var st = document.createElement('style');
     st.id = 'cropEnhanceStyle';
     st.textContent = [
-      '#cropStage{position:relative;overflow:hidden;touch-action:none}',
+      '#cropStage{position:relative;overflow:hidden;touch-action:none;height:min(52dvh,480px);min-height:240px;aspect-ratio:auto}',
       '#cropImg{position:absolute;max-width:none;user-select:none;-webkit-user-select:none}',
-      '#cropFrame{position:absolute;border:2px solid #4353c8;background:rgba(67,83,200,.10);box-sizing:border-box;touch-action:none;z-index:2}',
-      '.cf-handle{position:absolute;width:16px;height:16px;background:#fff;border:2px solid #4353c8;border-radius:3px;box-sizing:border-box;z-index:3}',
-      '.cf-nw{left:-8px;top:-8px;cursor:nwse-resize}.cf-ne{right:-8px;top:-8px;cursor:nesw-resize}',
-      '.cf-sw{left:-8px;bottom:-8px;cursor:nesw-resize}.cf-se{right:-8px;bottom:-8px;cursor:nwse-resize}',
-      '.cf-n{left:50%;top:-8px;transform:translateX(-50%);cursor:ns-resize}.cf-s{left:50%;bottom:-8px;transform:translateX(-50%);cursor:ns-resize}',
-      '.cf-w{top:50%;left:-8px;transform:translateY(-50%);cursor:ew-resize}.cf-e{top:50%;right:-8px;transform:translateY(-50%);cursor:ew-resize}',
+      '#cropFrame{position:absolute;transform:none;pointer-events:auto;border:2px solid #477363;background:transparent;box-sizing:border-box;touch-action:none;z-index:2;cursor:move}',
+      '.cf-handle{position:absolute;width:44px;height:44px;box-sizing:border-box;z-index:3;touch-action:none}',
+      '.cf-handle:after{content:"";position:absolute;inset:15px;background:white;border:2px solid #477363;border-radius:4px;pointer-events:none}',
+      '.cf-nw{left:-23px;top:-23px;cursor:nwse-resize}.cf-ne{right:-23px;top:-23px;cursor:nesw-resize}',
+      '.cf-sw{left:-23px;bottom:-23px;cursor:nesw-resize}.cf-se{right:-23px;bottom:-23px;cursor:nwse-resize}',
+      '.cf-n{left:50%;top:-23px;transform:translateX(-50%);cursor:ns-resize}.cf-s{left:50%;bottom:-23px;transform:translateX(-50%);cursor:ns-resize}',
+      '.cf-w{top:50%;left:-23px;transform:translateY(-50%);cursor:ew-resize}.cf-e{top:50%;right:-23px;transform:translateY(-50%);cursor:ew-resize}',
       '.cf-size{position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}',
       '.crop-tip{font-size:12px;color:#8a90a3;margin:10px 2px 0;text-align:center}'
     ].join('\n');
     document.head.appendChild(st);
   }
 
+  function bounds() {
+    var scale = S.baseScale * S.zoom;
+    return { left: Math.max(0, S.offX), top: Math.max(0, S.offY),
+      right: Math.min(S.stageW, S.offX + S.naturalW * scale),
+      bottom: Math.min(S.stageH, S.offY + S.naturalH * scale) };
+  }
+
   function clampFrame() {
-    var min = 56;
-    if (S.frameW < min) S.frameW = min;
-    if (S.frameH < min) S.frameH = min;
-    if (S.frameX < 0) S.frameX = 0;
-    if (S.frameY < 0) S.frameY = 0;
-    if (S.frameX + S.frameW > S.stageW) S.frameX = S.stageW - S.frameW;
-    if (S.frameY + S.frameH > S.stageH) S.frameY = S.stageH - S.frameH;
-    if (S.frameW > S.stageW) { S.frameW = S.stageW; S.frameX = 0; }
-    if (S.frameH > S.stageH) { S.frameH = S.stageH; S.frameY = 0; }
+    var b = bounds();
+    S.frameW = Math.min(Math.max(56, S.frameW), b.right - b.left);
+    S.frameH = Math.min(Math.max(56, S.frameH), b.bottom - b.top);
+    S.frameX = Math.max(b.left, Math.min(S.frameX, b.right - S.frameW));
+    S.frameY = Math.max(b.top, Math.min(S.frameY, b.bottom - S.frameH));
   }
 
   function clampImage() {
@@ -93,18 +99,21 @@
     if (!naturalW || !naturalH) { naturalW = S.stageW; naturalH = S.stageH; }
     S.naturalW = naturalW;
     S.naturalH = naturalH;
-    S.baseScale = Math.max(S.stageW / naturalW, S.stageH / naturalH);
+    // Show the whole page first; cover would hide the top and bottom of a test paper.
+    S.baseScale = Math.min((S.stageW - 32) / naturalW, (S.stageH - 32) / naturalH);
     S.zoom = 1;
     var dispW = naturalW * S.baseScale;
     var dispH = naturalH * S.baseScale;
     S.offX = (S.stageW - dispW) / 2;
     S.offY = (S.stageH - dispH) / 2;
-    S.frameW = Math.round(S.stageW * 0.78);
-    S.frameH = Math.round(S.stageH * 0.66);
+    S.frameW = Math.round(dispW * 0.85);
+    S.frameH = Math.round(dispH * 0.35);
     S.frameX = Math.round((S.stageW - S.frameW) / 2);
     S.frameY = Math.round((S.stageH - S.frameH) / 2);
     clampFrame();
-    clampImage();
+    S.active = true;
+    drag = null;
+    document.getElementById('cropZoom').value = 1;
     render();
     bind();
   }
@@ -130,24 +139,32 @@
   function onDown(e) {
     var stage = document.getElementById('cropStage');
     var frame = document.getElementById('cropFrame');
-    if (!stage || !frame) return;
+    if (!stage || !frame || !S.active || rotating || drag || e.isPrimary === false) return;
     try { stage.setPointerCapture(e.pointerId); } catch (err) {}
     if (frame.contains(e.target)) {
       var dir = e.target.classList ? handleDir(e.target.classList) : null;
+      if (!dir) {
+        var rect = frame.getBoundingClientRect();
+        var horizontal = e.clientX - rect.left < 18 ? 'w' : rect.right - e.clientX < 18 ? 'e' : '';
+        var vertical = e.clientY - rect.top < 18 ? 'n' : rect.bottom - e.clientY < 18 ? 's' : '';
+        dir = vertical + horizontal;
+      }
       if (dir) {
         drag = { type: dir, startX: e.clientX, startY: e.clientY, fX: S.frameX, fY: S.frameY, fW: S.frameW, fH: S.frameH };
       } else {
         drag = { type: 'move', startX: e.clientX, startY: e.clientY, fX: S.frameX, fY: S.frameY };
       }
       e.preventDefault();
+      drag.pointerId = e.pointerId;
       return;
     }
     drag = { type: 'image', startX: e.clientX, startY: e.clientY, oX: S.offX, oY: S.offY };
+    drag.pointerId = e.pointerId;
     e.preventDefault();
   }
 
   function onMove(e) {
-    if (!drag) return;
+    if (!drag || drag.pointerId !== e.pointerId) return;
     var dx = e.clientX - drag.startX;
     var dy = e.clientY - drag.startY;
     if (drag.type === 'image') {
@@ -159,7 +176,6 @@
       S.frameX = drag.fX + dx;
       S.frameY = drag.fY + dy;
       clampFrame();
-      clampImage();
       render();
     } else {
       var min = 56;
@@ -177,19 +193,23 @@
         ny = drag.fY + (drag.fH - h2);
         nh = h2;
       }
-      S.frameX = nx; S.frameY = ny; S.frameW = nw; S.frameH = nh;
+      var b = bounds();
+      var right = Math.min(b.right, nx + nw), bottom = Math.min(b.bottom, ny + nh);
+      nx = Math.max(b.left, nx); ny = Math.max(b.top, ny);
+      S.frameX = nx; S.frameY = ny; S.frameW = right - nx; S.frameH = bottom - ny;
       clampFrame();
-      clampImage();
       render();
     }
     e.preventDefault();
   }
 
-  function onUp() {
+  function onUp(e) {
+    if (drag && e && e.pointerId !== drag.pointerId) return;
     drag = null;
   }
 
   function zoom(value) {
+    if (!S.active || rotating) return;
     var next = Number(value);
     if (!next || next <= 0) return;
     var ratio = next / S.zoom;
@@ -197,13 +217,18 @@
     S.offX = S.frameX - (S.frameX - S.offX) * ratio;
     S.offY = S.frameY - (S.frameY - S.offY) * ratio;
     clampImage();
+    clampFrame();
     render();
   }
 
   function rotate(dir) {
-    if (!capturedImage || ocrBusy) return;
+    if (!sourceImage || ocrBusy || rotating) return;
+    rotating = true;
+    var current = document.getElementById('cropImg');
     var img = new Image();
     img.onload = function () {
+      try {
+      if (!cropModalOpen || current !== document.getElementById('cropImg')) return;
       var w = img.naturalWidth, h = img.naturalHeight;
       var canvas = document.createElement('canvas');
       canvas.width = h; canvas.height = w;
@@ -211,23 +236,29 @@
       ctx.translate(h / 2, w / 2);
       ctx.rotate(dir === 'left' ? -Math.PI / 2 : Math.PI / 2);
       ctx.drawImage(img, -w / 2, -h / 2);
-      capturedImage = canvas.toDataURL('image/jpeg', 0.92);
+      sourceImage = canvas.toDataURL('image/jpeg', 0.92);
       var cropImg = document.getElementById('cropImg');
       if (cropImg) {
         cropImg.onload = setup;
-        cropImg.src = capturedImage;
+        cropImg.src = sourceImage;
       }
+      } catch (error) { notifyFailure(error); }
+      finally { rotating = false; }
     };
-    img.src = capturedImage;
+    img.onerror = function () { rotating = false; showToast('图片读取失败，请重新选择'); };
+    img.src = sourceImage;
   }
 
   function openCropModal() {
     if (!capturedImage || ocrBusy) return;
     if (typeof window.openModal !== 'function') return;
+    sourceImage = capturedPageImage || capturedImage;
+    S.active = false;
+    drag = null;
     cropModalOpen = true;
-    window.openModal('裁剪与校正', [
+    window.openModal('框选一道题', [
       '<div class="crop-stage" id="cropStage">',
-      '  <img id="cropImg" src="' + imageHtml(capturedImage) + '" alt="裁剪区域">',
+      '  <img id="cropImg" draggable="false" src="' + imageHtml(sourceImage) + '" alt="整页试卷">',
       '  <div class="crop-frame" id="cropFrame">',
       '    <span class="cf-handle cf-nw"></span><span class="cf-handle cf-n"></span><span class="cf-handle cf-ne"></span>',
       '    <span class="cf-handle cf-w"></span><span class="cf-handle cf-e"></span>',
@@ -244,7 +275,7 @@
       '  <div class="crop-zoom"><input id="cropZoom" type="range" min="1" max="3" step="0.05" value="1" oninput="cropEnhanceZoom(this.value)"></div>',
       '  <button class="btn teal" onclick="cropEnhanceApply()">完成</button>',
       '</div>',
-      '<p class="crop-tip">拖动框体移动；拖四角/四边自由调宽高；滑块整体缩放；旋转后自动重排</p>'
+      '<p class="crop-tip">拖边或四角调大小，拖框内移动选区。放大后可拖框外移动图片。</p>'
     ].join('\n'));
     var img = document.getElementById('cropImg');
     if (img) {
@@ -254,6 +285,8 @@
   }
 
   function applyCrop() {
+    if (!S.active || rotating || !cropModalOpen) return;
+    try {
     var scale = S.baseScale * S.zoom;
     var srcX = (S.frameX - S.offX) / scale;
     var srcY = (S.frameY - S.offY) / scale;
@@ -267,8 +300,9 @@
       if (typeof window.showToast === 'function') window.showToast('裁剪区域无效');
       return;
     }
-    var outW = Math.min(2400, Math.max(600, Math.round(srcW)));
-    var outH = Math.max(1, Math.round(outW * srcH / srcW));
+    var outputScale = Math.min(1, 2400 / Math.max(srcW, srcH));
+    var outW = Math.max(1, Math.round(srcW * outputScale));
+    var outH = Math.max(1, Math.round(srcH * outputScale));
     var canvas = document.createElement('canvas');
     canvas.width = outW;
     canvas.height = outH;
@@ -276,11 +310,14 @@
     if (!img) return;
     canvas.getContext('2d').drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
     capturedImage = canvas.toDataURL('image/jpeg', 0.92);
+    capturedPageImage = sourceImage;
+    lastOcrRaw = '';
     drag = null;
     S.active = false;
     if (typeof window.closeModal === 'function') window.closeModal();
     if (typeof window.showCapturedImage === 'function') window.showCapturedImage();
     if (typeof window.showToast === 'function') window.showToast('裁剪完成');
+    } catch (error) { notifyFailure(error); }
   }
 
   // 覆盖原裁剪入口与完成逻辑

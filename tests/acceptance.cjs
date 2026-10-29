@@ -30,7 +30,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('vision-api-v1','acceptance-v3'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('crop-touch-v1','acceptance-v4'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -57,7 +57,7 @@ const profile=path.join(root,'.work','browser-acceptance-'+Date.now());
 const test=async(name,fn)=>{await fn();results.push({name,status:'passed'});fs.writeFileSync(path.join(output,'acceptance-progress.json'),JSON.stringify(results,null,2));console.log('PASS',name)};
 let context,page,base;
 const open=async()=>{
-  context=await chromium.launchPersistentContext(profile,{...launch,viewport:{width:1360,height:960}});
+  context=await chromium.launchPersistentContext(profile,{...launch,viewport:{width:1360,height:960},hasTouch:true});
   page=await context.newPage();
   page.on('pageerror',e=>errors.push(e.message));
   page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
@@ -260,6 +260,61 @@ if(process.argv.includes('--serve')) {
   await page.screenshot({path:path.join(output,'home-mobile.png'),animations:'disabled'});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.evaluate(()=>navigateTo('capture'));await page.screenshot({path:path.join(output,'capture-mobile.png'),animations:'disabled'});
+  await test('Mobile touch crop resizes independently and saves three questions from one page offline',async()=>{
+    const before=await page.evaluate(()=>allErrors.length);
+    const sheet=await fixture(['第 3 题：等比数列','月产量构成等比数列，求总产量。','A. 170  B. 178  C. 182  D. 188','第 6 题：排列计数','五名员工值班，连续两天不能重复。','A. 60  B. 70  C. 80  D. 100','第 16 题：立体几何','已知四棱锥，求直线与平面所成角。','保留几何图和完整条件。'],'crop-sheet.png');
+    await page.locator('#fileInput').setInputFiles(sheet);
+    await page.waitForFunction(()=>!!capturedPageImage);
+    const original=await page.evaluate(()=>capturedPageImage);
+    await page.locator('#btnCrop').click();
+    const session=await context.newCDPSession(page);
+    const touchDrag=async(x,y,dx,dy)=>{
+      await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+      for(let n=1;n<=6;n++)await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+dx*n/6,y:y+dy*n/6}]});
+      await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    };
+    const shape=()=>page.locator('#cropFrame').boundingBox();
+    for(let n=0;n<3;n++){
+      await page.waitForFunction(()=>document.getElementById('cropImg')?.naturalWidth>0);
+      await page.locator('#cropStage').scrollIntoViewIfNeeded();
+      const img=await page.locator('#cropImg').boundingBox();
+      const stage=await page.locator('#cropStage').boundingBox();
+      assert(img.x>=stage.x && img.y>=stage.y && img.y+img.height<=stage.y+stage.height+1,'Full page must fit initially');
+      assert.equal(await page.locator('#cropFrame').evaluate(e=>getComputedStyle(e).transform),'none');
+      assert.equal(await page.locator('.cf-e').evaluate(e=>e.getBoundingClientRect().width),44);
+      let a=await shape();const handle=await page.locator('.cf-e').boundingBox();
+      await touchDrag(handle.x+22,handle.y+22,-20,0);
+      let b=await shape();assert(b.width<a.width-15);assert(Math.abs(b.height-a.height)<2);
+      const south=await page.locator('.cf-s').boundingBox();
+      await touchDrag(south.x+22,south.y+22,0,-25);
+      let c=await shape();assert(c.height<b.height-20);assert(Math.abs(c.width-b.width)<2);
+      await touchDrag(c.x+c.width/2,c.y+c.height/2,0,(n-1)*65);
+      const moved=await shape();assert(Math.abs(moved.y-c.y-(n-1)*65)<3);
+      assert.deepEqual(await page.locator('#cropImg').boundingBox(),img,'Moving selection must not drag the image');
+      if(n===0)await page.screenshot({path:path.join(output,'crop-touch-375x812.png'),animations:'disabled'});
+      await page.getByRole('button',{name:'完成',exact:true}).click();
+      assert.equal(await page.evaluate(()=>capturedPageImage),original);
+      assert.notEqual(await page.evaluate(()=>capturedImage),original);
+      await page.locator('#saveImageOnly').click();
+      await page.locator('#formText').fill('第 '+[3,6,16][n]+' 题');
+      if(n===0){
+        await page.evaluate(()=>{window.cropOriginalStoreAdd=storeAdd;storeAdd=async()=>{throw new Error('crop save failure fixture')}});
+        await page.getByRole('button',{name:'保存并选下一题',exact:true}).click();
+        await page.waitForFunction(()=>!saveBusy);
+        assert.equal(await page.evaluate(()=>allErrors.length),before);
+        assert.equal(await page.evaluate(()=>capturedPageImage),original);
+        assert(await page.locator('#formText').isVisible());
+        await page.evaluate(()=>{storeAdd=window.cropOriginalStoreAdd});
+      }
+      await page.getByRole('button',{name:n<2?'保存并选下一题':'保存错题',exact:true}).click();
+      await page.waitForFunction(()=>!saveBusy);
+      assert.equal(await page.evaluate(()=>allErrors.length),before+n+1);
+      if(n<2)assert(await page.locator('#cropStage').isVisible());
+    }
+    assert.equal(await page.evaluate(()=>capturedPageImage),null);
+    console.log('TOUCH_CROP: 375x812, touch events; width/height independent; full page retained; 3 saves; failed save preserved draft; server stopped');
+    await session.detach();
+  });
   await context.close();
   // IndexedDB unavailable: a separate browser context, no real data touched.
   await startServer(serverPort);

@@ -66,6 +66,7 @@ let subjectFilter = 'all';
 let statusFilter = 'all';
 let dateFilter = 'all';
 let capturedImage = null;
+let capturedPageImage = null; // Current full page, kept only while recording its questions.
 let cameraStream = null;
 let videoEl = null;
 let facingMode = 'environment';
@@ -982,6 +983,8 @@ function takePhoto() {
   canvas.height = videoEl.videoHeight || 960;
   canvas.getContext('2d').drawImage(videoEl, 0, 0);
   capturedImage = canvas.toDataURL('image/jpeg', 0.85);
+  capturedPageImage = capturedImage;
+  lastOcrRaw = '';
   stopCamera();
   showCapturedImage();
 }
@@ -1008,7 +1011,7 @@ async function readFileAsImage(file) {
     });
     const resized = await compressImage(data, 2400, 2000000);
     if (token !== imageRequest || ocrBusy) return;
-    stopCamera(); capturedImage = resized; lastOcrRaw = '';
+    stopCamera(); capturedImage = resized; capturedPageImage = resized; lastOcrRaw = '';
     navigateTo('capture'); showCapturedImage();
   } catch (error) { notifyFailure(error); }
 }
@@ -1030,6 +1033,7 @@ function retakeCapture() {
   if (ocrBusy) return;
   imageRequest++; lastOcrRaw = ''; saveImageSnapshot = null;
   capturedImage = null;
+  capturedPageImage = null;
   document.getElementById('saveImageOnly').classList.add('hidden');
   stopCamera();
   document.getElementById('capturePreview').innerHTML = '<div class="placeholder"><div class="capture-glyph" aria-hidden="true">＋</div><div class="pl-text">拍照或选择图片</div></div>';
@@ -1405,6 +1409,7 @@ function openSaveModal(text, guessedSubject) {
       <div class="modal-actions">
         <button class="btn outline" onclick="closeModal()">取消</button>
         <button class="btn primary" onclick="submitSaveForm()">保存错题</button>
+        ${capturedPageImage && saveImageSnapshot ? '<button class="btn outline" style="grid-column:1 / -1" onclick="submitSaveForm(true)">保存并选下一题</button>' : ''}
       </div>
     </div>
   `;
@@ -1418,9 +1423,10 @@ function fillTopicSelect(subject) {
     topics.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
-async function submitSaveForm() {
+async function submitSaveForm(continuePage = false) {
   if (saveBusy) return;
   saveBusy = true;
+  const nextPage = continuePage && !editingId ? capturedPageImage : null;
   try {
   const text = document.getElementById('formText').value.trim();
   const subject = document.getElementById('formSubject').value;
@@ -1470,6 +1476,14 @@ async function submitSaveForm() {
   renderErrorList();
   document.getElementById('manualText').value = '';
   document.getElementById('manualEntry').classList.add('hidden');
+  if (nextPage) {
+    capturedPageImage = nextPage;
+    capturedImage = nextPage;
+    navigateTo('capture');
+    showCapturedImage();
+    openCropModal();
+    showToast('已保存，继续框选下一题');
+  }
 
   } catch (error) { notifyFailure(error); }
   finally { saveBusy = false; }
