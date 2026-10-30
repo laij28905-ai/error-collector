@@ -6,6 +6,7 @@ const context = vm.createContext({ console, URL, document:{addEventListener(){}}
 vm.runInContext(fs.readFileSync('js/reliability.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/ai-client.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/app.js','utf8'),context);
+vm.runInContext(fs.readFileSync('js/ocr-review.js','utf8'),context);
 const run=code=>JSON.parse(JSON.stringify(vm.runInContext(code,context)));
 const samples = [
   ['f(x)=x^2; x >= 0', 'f(x)=x²; x ≥ 0'],
@@ -38,3 +39,9 @@ assert.equal(run('aiResponseText({choices:[{message:{content:[{type:"text",text:
 assert.throws(()=>run('aiResponseText({choices:[{message:{content:""}}]})'),/有效内容/);
 assert.throws(()=>run('aiResponseText({choices:[{message:{content:"未完成"},finish_reason:"length"}]})'),/截断/);
 console.log('PASS: AI URL/key validation, image payload, multipart and invalid-response handling.');
+assert.equal(run('assessOcrQuality({text:"清晰印刷内容",confidence:90}).low'),false);
+assert.equal(run('assessOcrQuality({text:"乱码仍有输出",confidence:22}).low'),true);
+assert.equal(run('assessOcrQuality({text:" ",confidence:90}).low'),true);
+assert.equal(run('assessOcrQuality({text:"score unavailable"}).confidence'),null);
+assert.equal(run('assessOcrQuality({text:"weak words",confidence:85,words:Array.from({length:6},()=>({text:"x",confidence:20}))}).low'),true);
+console.log('PASS: OCR quality warning handles low scores, empty output and weak words; score is not accuracy.');

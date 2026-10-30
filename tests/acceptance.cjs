@@ -30,7 +30,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('crop-white-v1','acceptance-v4'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('ocr-quality-v1','acceptance-v5'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -192,15 +192,58 @@ if(process.argv.includes('--serve')) {
     const marks=document.querySelectorAll('#ocrCorrected mark').length;
     const roiLines=ocrRoiCount, candidate=normalizeOcrText(ocrCandidate || lastOcrRaw);
     acceptOcrCandidate();
-    return {roiLines,marks,modalScrollable:scrolled,accepted:document.getElementById('formText').value===candidate,rawPreserved:lastOcrRaw,visionDefaultHidden:!document.querySelector('[onclick="requestVisionReview()"]')};
+    return {roiLines,low:ocrQuality?.low,marks,modalScrollable:scrolled,accepted:document.getElementById('formText').value===candidate,rawPreserved:lastOcrRaw,visionDefaultHidden:!document.querySelector('[onclick="requestVisionReview()"]')};
   });
-  assert(correctionUi.roiLines>0);assert(correctionUi.marks>0);assert(correctionUi.accepted);
+  assert(correctionUi.low ? correctionUi.roiLines===0 : correctionUi.roiLines>0);assert(correctionUi.marks>0);assert(correctionUi.accepted);
   assert(correctionUi.modalScrollable);assert(correctionUi.visionDefaultHidden);
   assert.equal(correctionUi.rawPreserved,math.raw);
   console.log('FORMULA_CORRECTION_UI: '+JSON.stringify(correctionUi));
   fs.writeFileSync(path.join(output,'formula-correction-ui.json'),JSON.stringify(correctionUi,null,2));
   await page.screenshot({path:path.join(output,'ocr-desktop.png'),animations:'disabled'});
   await page.evaluate(()=>{closeModal();retakeCapture()});
+  await test('Low-quality OCR stays a draft, image fallback saves, mobile editor precedes collapsed comparison',async()=>{
+    await page.setViewportSize({width:375,height:812});
+    await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
+    const before=await page.evaluate(()=>allErrors.length);
+    const raw=('x2 > U 亦 mir[i]7 砂施小水 1 汁仁河\n').repeat(18);
+    await page.evaluate(async raw=>{
+      const original=ocrWorker;
+      let calls=0;
+      ocrWorker={setParameters:async()=>{},recognize:async()=>{if(++calls>1)throw new Error('Low quality must skip ROI retry');return {data:{text:raw,confidence:18,lines:[{text:raw,bbox:{x0:0,y0:0,x1:200,y1:40}}]}}}};
+      try{await runOcr()}finally{ocrWorker=original}
+    },raw);
+    assert.equal(await page.evaluate(()=>ocrRoiCount),0);
+    assert(await page.getByText('这次识别结果不可靠',{exact:true}).isVisible());
+    assert.equal(await page.locator('.ocr-comparison').evaluate(e=>e.open),false);
+    assert(await page.locator('#formText').evaluate(e=>Boolean(e.compareDocumentPosition(document.querySelector('.ocr-comparison')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    assert.equal(await page.locator('.record-save-form .modal-actions').evaluate(e=>getComputedStyle(e).position),'static');
+    await page.locator('#formText').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(output,'ocr-quality-375x812.png'),animations:'disabled'});
+    await page.getByRole('button',{name:'保存错题',exact:true}).click();await page.waitForFunction(()=>!saveBusy);
+    assert.equal(await page.evaluate(()=>allErrors.length),before);
+    await page.locator('.ocr-comparison summary').click();
+    const columns=await page.locator('.ocr-diff-grid section').evaluateAll(els=>els.map(e=>e.getBoundingClientRect().left));
+    assert.equal(columns[0],columns[1]);
+    await page.locator('#ocrTextConfirmed').check();
+    await page.locator('#formText').fill('已人工修正');
+    assert.equal(await page.locator('#ocrTextConfirmed').isChecked(),false);
+    await page.getByRole('button',{name:'清除识别文字，仅保留图片',exact:true}).click();
+    assert.equal(await page.evaluate(()=>lastOcrRaw),'');
+    assert.equal(await page.locator('#formText').inputValue(),'待补充题目文字');
+    await page.getByRole('button',{name:'保存错题',exact:true}).click();await page.waitForFunction(()=>!saveBusy);
+    assert.equal(await page.evaluate(()=>allErrors.length),before+1);
+    assert(await page.evaluate(()=>allErrors.some(e=>e.text==='待补充题目文字' && !!e.image && !e.ocrRaw)));
+    await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
+    await page.evaluate(async()=>{
+      const original=ocrWorker;
+      ocrWorker={setParameters:async()=>{},recognize:async()=>({data:{text:'',confidence:0}})};
+      try{await runOcr()}finally{ocrWorker=original}
+    });
+    assert.equal(await page.locator('#formText').inputValue(),'待补充题目文字');
+    assert(await page.evaluate(()=>!!saveImageSnapshot && !ocrBusy && !processingBusy));
+    console.log('OCR_QUALITY: injected confidence=18 warns; no ROI retry; unconfirmed save blocked; 375x812 single-column comparison collapsed; image-only saved without garbage; empty OCR preserves image');
+    await page.evaluate(()=>{closeModal();retakeCapture()});
+  });
   await test('Online AI response and failed-network template fallback',async()=>{
     await startServer(serverPort);
     await page.evaluate(()=>{navigateTo('profile');document.getElementById('aiSettings').open=true;document.getElementById('aiKey').value='previous-provider-key';document.getElementById('aiProvider').value='deepseek';chooseAiService()});

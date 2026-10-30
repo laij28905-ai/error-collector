@@ -1561,5 +1561,14 @@ body[data-theme="dark"] .app-header,body[data-theme="dark"] .app-nav { backgroun
 .diff-new { background: #d6e9d3; color: #244e30; }
 .ocr-suggestion { padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .ocr-suggestion pre { margin-top: 12px; }.ocr-review-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.ocr-quality-note { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.ocr-quality-note.low { border-color: #cfb983; background: #fcf7e9; }
+.ocr-quality-note strong { font-size: 15px; }.ocr-quality-note p { font-size: 13px; line-height: 1.7; margin: 8px 0 12px; }
+.ocr-comparison { border-top: 1px solid var(--line); padding-top: 12px; }.ocr-comparison summary { font-size: 13px; cursor: pointer; }
+.ocr-comparison .field-help { margin: 10px 0; }.ocr-diff-grid pre,.ocr-suggestion pre { max-height: 220px; overflow-y: auto; }
+.ocr-confirm { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.6; padding: 8px 0; }
+.ocr-confirm input { width: 20px; height: 20px; flex: 0 0 20px; margin: 1px 0 0; }
+.record-save-form .modal-actions { position: static; padding-bottom: 0; }
+@media(max-width:600px) { .ocr-diff-grid { grid-template-columns: minmax(0,1fr); }.record-save-form textarea { scroll-margin: 24px; } }
 .modal-sheet { scroll-padding-bottom: 96px; overscroll-behavior: contain; }
 @media(max-width: 600px) { .modal-sheet { padding: 18px 18px calc(18px + env(safe-area-inset-bottom,0px)); max-height: 90dvh; }.modal-actions { bottom: -18px; }.ocr-diff-grid { gap: 6px; }.ocr-diff-grid section { padding: 9px; }.capture-secondary { flex-wrap: wrap; } }

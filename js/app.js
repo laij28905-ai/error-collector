@@ -1282,6 +1282,7 @@ async function runOcr() {
   if (!capturedImage) { showToast('请先拍照或选择图片'); return; }
   const snapshot = capturedImage;
   ocrBusy = true; processingBusy = true;
+  ocrQuality = null; lastOcrRaw = ''; ocrCandidate = ''; ocrRoiCount = 0;
   document.getElementById('btnOcr').disabled = true;
   showProcessing('正在识别题目', '图片留在本机，识别后可以核对修改');
   try {
@@ -1289,7 +1290,7 @@ async function runOcr() {
     if (!offlineReady) throw new Error('请先联网完成离线包准备');
     // Default recording always stays on-device. Vision is an explicit secondary action.
     const text = await runTesseractOcr(snapshot);
-    if (!text.trim()) { showToast('没有识别到文字。试试裁剪到一道题，或补充文字。'); showManualEntry(); return; }
+    if (!text.trim()) { openSaveModal('待补充题目文字', ''); showToast('未识别到可用文字，已保留原图，可直接保存或补充文字'); return; }
     lastOcrRaw = text;
     saveImageSnapshot = snapshot;
     openSaveModal(normalizeOcrText(text), guessSubject(text));
@@ -1319,7 +1320,10 @@ async function runTesseractOcr(snapshot) {
     });
     await ocrWorker.setParameters({ user_defined_dpi: '300' });
     const result = await ocrWorker.recognize(snapshot);
-    ocrCandidate = normalizeOcrText(await mathLineCandidates(snapshot, result.data, ocrWorker));
+    ocrQuality = assessOcrQuality(result.data);
+    // Don't spend eight additional recognition passes polishing low-confidence garbage.
+    ocrRoiCount = 0;
+    ocrCandidate = normalizeOcrText(ocrQuality.low ? result.data.text || '' : await mathLineCandidates(snapshot, result.data, ocrWorker));
     return result.data.text || '';
   })();
   try {
@@ -1378,7 +1382,7 @@ function openSaveModal(text, guessedSubject) {
   const subject = guessedSubject || settings.subjects[0] || '数学';
   const topics = KNOWLEDGE_MAP[subject] || [];
   const html = `
-    <div class="form-stack">
+    <div class="form-stack record-save-form">
       ${saveImageSnapshot ? `<details class="source-image" open><summary>对照原图</summary><img class="detail-img" src="${imageHtml(saveImageSnapshot)}" alt="原始题目"></details>` : ''}
       ${lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
       <div>
@@ -1433,6 +1437,12 @@ async function submitSaveForm(continuePage = false) {
   const topic = document.getElementById('formTopic').value;
   const cause = document.getElementById('formCause').value || '';
   const answer = document.getElementById('formAnswer').value.trim();
+  const ocrConfirmation = document.getElementById('ocrTextConfirmed');
+  if (!editingId && ocrConfirmation && !ocrConfirmation.checked) {
+    showToast('识别结果不可靠，请核对后勾选确认，或选择仅保留图片');
+    ocrConfirmation.scrollIntoView({ block: 'center' });
+    return;
+  }
   if (!text) {
     showToast('请输入题目内容');
     return;
@@ -3313,6 +3323,7 @@ function openModal(title, html) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
+  document.querySelector('.modal-sheet').scrollTop = 0;
 }
 
 function closeModal(force = false) {

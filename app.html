@@ -78,11 +78,12 @@
         <button id="btnAlbum" class="btn" onclick="uploadImage()">选择图片</button>
         <button id="btnPaste" class="btn" onclick="pasteClipboardImage()">粘贴图片</button>
         <button id="btnCrop" class="btn hidden" onclick="openCropModal()">框选题目</button>
-        <button id="btnOcr" class="btn teal hidden" onclick="runOcr()">识别并记录</button>
+        <button id="btnOcr" class="btn teal hidden" onclick="runOcr()">离线识别（印刷体）</button>
         <button id="btnAiCapture" class="btn hidden" onclick="runAiCapture()">AI 识图（联网）</button>
         <button id="btnRetake" class="btn hidden" onclick="retakeCapture()">重新选择</button>
       </div>
       <div class="capture-secondary"><button class="text-btn" onclick="showManualEntry()">直接输入文字</button><button id="saveImageOnly" class="text-btn hidden" onclick="openImageOnly()">先保存原图</button></div>
+      <p class="field-help">手写解答、公式表格建议先保存图片；联网时可用自配模型 AI 识图，结果仍需核对。</p>
 
       <div id="manualEntry" class="manual-entry hidden">
         <label class="field-label" for="manualText">题目内容</label>

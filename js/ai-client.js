@@ -124,7 +124,7 @@ async function runAiCapture() {
   try {
     showProcessing('AI 正在识图', '当前题图将发送到你配置的模型服务');
     const text = await callVisionOcr(snapshot);
-    lastOcrRaw = text; ocrCandidate = normalizeOcrText(text); ocrRoiCount = 0;
+    lastOcrRaw = text; ocrCandidate = normalizeOcrText(text); ocrRoiCount = 0; ocrQuality = null;
     saveImageSnapshot = snapshot;
     openSaveModal(ocrCandidate, guessSubject(text));
   } catch (error) { notifyFailure(error); }

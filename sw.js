@@ -2,7 +2,7 @@
 importScripts('./ocr-assets.js');
 const SCOPE = new URL(self.registration.scope).pathname;
 const PREFIX = 'tf-shell:' + SCOPE + ':';
-const CACHE_NAME = PREFIX + 'crop-white-v1';
+const CACHE_NAME = PREFIX + 'ocr-quality-v1';
 const OCR_CACHE = 'tf-ocr:' + SCOPE + ':' + OCR_PACK.version;
 const APP_SHELL = ['./', './index.html', './app.html', './styles.css', './js/app.js',
   './js/reliability.js', './js/ai-client.js', './js/ocr-review.js', './js/offline.js', './js/album-enhance.js', './js/crop-enhance.js',

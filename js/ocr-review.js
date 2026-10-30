@@ -5,6 +5,30 @@
  */
 let ocrCandidate = '';
 let ocrRoiCount = 0;
+let ocrQuality = null;
+// Engine scores are a warning heuristic, not calibrated accuracy or handwriting detection.
+function assessOcrQuality(data) {
+  const confidence = typeof data.confidence === 'number' && Number.isFinite(data.confidence) ? data.confidence : null;
+  const words = (data.words || []).filter(word => word.text?.trim() && typeof word.confidence === 'number' && Number.isFinite(word.confidence));
+  const weakRatio = words.length ? words.filter(word => word.confidence < 50).length / words.length : 0;
+  const empty = !String(data.text || '').trim();
+  return { confidence, empty, low: empty || (confidence !== null && confidence < 60) || (words.length >= 5 && weakRatio > .5) };
+}
+
+function keepOcrImageOnly() {
+  if (!saveImageSnapshot || saveBusy || processingBusy) return;
+  const subject = document.getElementById('formSubject')?.value;
+  const topic = document.getElementById('formTopic')?.value;
+  const cause = document.getElementById('formCause')?.value;
+  const answer = document.getElementById('formAnswer')?.value;
+  capturedImage = saveImageSnapshot;
+  lastOcrRaw = ''; ocrCandidate = ''; ocrRoiCount = 0; ocrQuality = null;
+  openSaveModal('待补充题目文字', subject);
+  if (topic) document.getElementById('formTopic').value = topic;
+  if (cause) document.getElementById('formCause').value = cause;
+  if (answer) document.getElementById('formAnswer').value = answer;
+  showToast('已移除识别文字，原图保留；可直接保存');
+}
 function isMathLine(text) {
   return /[=<>≥≤√∫²³^]|\b[xyz][2-9?]\b|\b[UV]\s*\(|函数|积分|根号|分式/.test(text);
 }
@@ -93,25 +117,28 @@ function ocrDiffMarkup(text, comparison, original = false) {
 function updateOcrDiff() {
   const field = document.getElementById('formText'), original = document.getElementById('ocrOriginal');
   if (!field || !original) return;
+  const checked = document.getElementById('ocrTextConfirmed'); if (checked) checked.checked = false;
   original.innerHTML = ocrDiffMarkup(lastOcrRaw, field.value, true);
   document.getElementById('ocrCorrected').innerHTML = ocrDiffMarkup(field.value, lastOcrRaw);
   const count = mathSuspicions(field.value).length;
-  document.getElementById('ocrWarning').textContent = count ? `发现 ${count} 处可疑符号，此处请对照原图。高亮仅是提醒。` : '未发现常见可疑符号，仍请对照原图核对。';
+  document.getElementById('ocrWarning').textContent = count ? `标记了 ${count} 处可能混淆的符号，不代表只有这些错误。请对照原图核对。` : '未命中常见符号规则，不代表识别正确。请对照原图核对。';
 }
 function acceptOcrCandidate() {
   const field = document.getElementById('formText'); field.value = normalizeOcrText(ocrCandidate || lastOcrRaw);
+  const checked = document.getElementById('ocrTextConfirmed'); if (checked) checked.checked = false;
   updateOcrDiff(); field.focus();
 }
 
 function ocrReviewEditor(text) {
   const vision = navigator.onLine && settings.useAiOcr && settings.aiKey && canUseAi();
-  return `<p id="ocrWarning" class="field-help"></p>
-    <div class="ocr-diff-grid"><section><h4>识别原文</h4><pre id="ocrOriginal"></pre></section><section><h4>校正后</h4><pre id="ocrCorrected"></pre></section></div>
-    <label class="field-label" for="formText">编辑校正内容</label>
+  return `<div class="ocr-quality-note ${ocrQuality?.low ? 'low' : ''}" role="status"><strong>${ocrQuality?.low ? '这次识别结果不可靠' : '识别文字需要核对'}</strong><p>离线识别主要适合清晰印刷体，手写公式、下标和表格可能出现大量错误。符号替换不能还原题意。</p><button type="button" class="btn outline" onclick="keepOcrImageOnly()">清除识别文字，仅保留图片</button></div>
+    <label class="field-label" for="formText">核对并编辑文字（可只保存图片）</label>
     <textarea id="formText" rows="5" oninput="updateOcrDiff()">${escapeHtml(text)}</textarea>
     <div class="formula-tools">${['²','³','≥','≤','√','∫','1','(',')','/'].map(x => `<button type="button" class="chip" onclick="insertFormula('${x}')">${x}</button>`).join('')}</div>
+    ${ocrQuality?.low ? '<label class="ocr-confirm"><input id="ocrTextConfirmed" type="checkbox">我已对照原图核对，保存当前文字</label>' : ''}
+    <details class="ocr-comparison"><summary>展开识别原文与当前编辑对比</summary><p id="ocrWarning" class="field-help"></p><div class="ocr-diff-grid"><section><h4>识别原文（未核对）</h4><pre id="ocrOriginal"></pre></section><section><h4>当前编辑</h4><pre id="ocrCorrected"></pre></section></div></details>
     <details class="ocr-suggestion"><summary>查看处理建议（${ocrRoiCount} 行公式局部增强）</summary><pre id="ocrSuggestion">${escapeHtml(ocrCandidate || normalizeOcrText(text))}</pre></details>
-    <div class="ocr-review-actions"><button type="button" class="btn outline" onclick="acceptOcrCandidate()">采纳处理建议</button>${vision ? '<button type="button" class="text-btn" onclick="requestVisionReview()">AI 视觉复核</button>' : ''}</div>`;
+    <div class="ocr-review-actions"><button type="button" class="btn outline" onclick="acceptOcrCandidate()">使用处理建议，仍需核对</button>${vision ? '<button type="button" class="text-btn" onclick="requestVisionReview()">AI 视觉复核</button>' : ''}</div>`;
 }
 
 async function requestVisionReview() {
