@@ -2,7 +2,7 @@
 importScripts('./ocr-assets.js');
 const SCOPE = new URL(self.registration.scope).pathname;
 const PREFIX = 'tf-shell:' + SCOPE + ':';
-const CACHE_NAME = PREFIX + 'ocr-quality-v1';
+const CACHE_NAME = PREFIX + 'photo-first-v1';
 const OCR_CACHE = 'tf-ocr:' + SCOPE + ':' + OCR_PACK.version;
 const APP_SHELL = ['./', './index.html', './app.html', './styles.css', './js/app.js',
   './js/reliability.js', './js/ai-client.js', './js/ocr-review.js', './js/offline.js', './js/album-enhance.js', './js/crop-enhance.js',
@@ -48,7 +48,7 @@ self.addEventListener('install', event => {
       headers.delete('Content-Encoding'); headers.delete('Content-Length');
       await cache.put(absolute(file), new Response(bytes, { headers }));
     }
-    await prepareOcr();
+    // Install the small application shell first. OCR is an explicit optional download.
     // Initial install activates normally. Updates wait for an explicit action.
   })());
 });
@@ -60,10 +60,12 @@ self.addEventListener('activate', event => {
     await self.clients.claim();
   })());
 });
+let ocrPreparation = null;
 self.addEventListener('message', event => {
   if (event.data?.type === 'APPLY_UPDATE') event.waitUntil(self.skipWaiting());
   if (event.data?.type === 'PREPARE_OCR') {
-    event.waitUntil(prepareOcr().then(() => event.source?.postMessage({ type: 'OCR_READY' }))
+    if (!ocrPreparation) ocrPreparation = prepareOcr().finally(() => { ocrPreparation = null; });
+    event.waitUntil(ocrPreparation.then(() => event.source?.postMessage({ type: 'OCR_READY' }))
       .catch(() => event.source?.postMessage({ type: 'OCR_FAILED' })));
   }
 });

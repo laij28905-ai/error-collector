@@ -67,6 +67,7 @@ let statusFilter = 'all';
 let dateFilter = 'all';
 let capturedImage = null;
 let capturedPageImage = null; // Current full page, kept only while recording its questions.
+let receiptPageImage = null;
 let cameraStream = null;
 let videoEl = null;
 let facingMode = 'environment';
@@ -365,10 +366,10 @@ function renderRecent() {
   }
   container.innerHTML = allErrors.slice(0, 4).map(e => `
     <button class="recent-item" onclick="openDetail(${e.id})">
-      <span class="subject-avatar ${subjectClass(e.subject)}">${subjectIcon(e.subject)}</span>
+      ${e.image ? `<img class="recent-thumb" src="${imageHtml(e.image)}" alt="题图" loading="lazy">` : `<span class="subject-avatar ${subjectClass(e.subject)}">${subjectIcon(e.subject)}</span>`}
       <span class="recent-info">
-        <span class="recent-title">${escapeHtml(shortText(e.text, 24))}</span>
-        <span class="recent-meta">${escapeHtml(e.subject)} · ${escapeHtml(e.topic || '未分类')}</span>
+        <span class="recent-title">${escapeHtml(questionTitle(e))}</span>
+        <span class="recent-meta">${escapeHtml(e.subject)}${e.topic && e.topic !== '未分类' ? ' · ' + escapeHtml(e.topic) : ''}</span>
       </span>
       <span class="recent-time">${dateLabel(e.createdAt)}</span>
     </button>
@@ -1018,14 +1019,16 @@ async function readFileAsImage(file) {
 
 function showCapturedImage() {
   stopCamera();
+  receiptPageImage = null;
   document.getElementById('saveImageOnly').classList.remove('hidden');
   document.getElementById('capturePreview').innerHTML = `<img src="${imageHtml(capturedImage)}" alt="错题图片">`;
   document.getElementById('btnCamera').textContent = '拍照';
   document.getElementById('btnCamera').onclick = startCamera;
-  document.getElementById('btnAlbum').classList.remove('hidden');
+  document.getElementById('btnCamera').classList.add('hidden');
+  document.getElementById('btnAlbum').classList.add('hidden');
+  document.getElementById('captureReceipt').classList.add('hidden');
+  document.getElementById('captureHint').textContent = '框选题目，或直接保存整张图。';
   document.getElementById('btnCrop').classList.remove('hidden');
-  document.getElementById('btnOcr').classList.remove('hidden');
-  document.getElementById('btnAiCapture').classList.remove('hidden');
   document.getElementById('btnRetake').classList.remove('hidden');
 }
 
@@ -1034,6 +1037,11 @@ function retakeCapture() {
   imageRequest++; lastOcrRaw = ''; saveImageSnapshot = null;
   capturedImage = null;
   capturedPageImage = null;
+  receiptPageImage = null;
+  document.getElementById('btnCamera').classList.remove('hidden');
+  document.getElementById('btnAlbum').classList.remove('hidden');
+  document.getElementById('captureReceipt').classList.add('hidden');
+  document.getElementById('captureHint').textContent = '拍一整页，框选一道题，直接保存。';
   document.getElementById('saveImageOnly').classList.add('hidden');
   stopCamera();
   document.getElementById('capturePreview').innerHTML = '<div class="placeholder"><div class="capture-glyph" aria-hidden="true">＋</div><div class="pl-text">拍照或选择图片</div></div>';
@@ -1376,7 +1384,7 @@ function guessSubject(text) {
 
 /* ===================== 保存 / 编辑 ===================== */
 
-function openSaveModal(text, guessedSubject) {
+function openSaveModal(text, guessedSubject, imageOnly = false) {
   editingId = null;
   saveImageSnapshot = capturedImage;
   const subject = guessedSubject || settings.subjects[0] || '数学';
@@ -1384,7 +1392,7 @@ function openSaveModal(text, guessedSubject) {
   const html = `
     <div class="form-stack record-save-form">
       ${saveImageSnapshot ? `<details class="source-image" open><summary>对照原图</summary><img class="detail-img" src="${imageHtml(saveImageSnapshot)}" alt="原始题目"></details>` : ''}
-      ${lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
+      ${imageOnly ? '<div><label class="field-label" for="formText">题号或备注（选填）</label><input id="formText" maxlength="160" placeholder="例如：第 3 题 / 数列求和"></div>' : lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
       <div>
         <label class="field-label">科目</label>
         <select id="formSubject" onchange="fillTopicSelect(this.value)">
@@ -1417,7 +1425,7 @@ function openSaveModal(text, guessedSubject) {
       </div>
     </div>
   `;
-  openModal('核对并保存', html);
+  openModal(imageOnly ? '保存这道题' : '核对并保存', html);
   updateOcrDiff();
 }
 
@@ -1431,8 +1439,9 @@ async function submitSaveForm(continuePage = false) {
   if (saveBusy) return;
   saveBusy = true;
   const nextPage = continuePage && !editingId ? capturedPageImage : null;
+  const pageBeforeSave = capturedPageImage;
   try {
-  const text = document.getElementById('formText').value.trim();
+  const text = document.getElementById('formText').value.trim() || (!editingId && saveImageSnapshot ? '图片错题' : '');
   const subject = document.getElementById('formSubject').value;
   const topic = document.getElementById('formTopic').value;
   const cause = document.getElementById('formCause').value || '';
@@ -1478,6 +1487,7 @@ async function submitSaveForm(continuePage = false) {
     await loadErrors();
     capturedImage = null;
     retakeCapture();
+    showCaptureReceipt(item, pageBeforeSave);
     showToast('错题已保存');
   }
   closeModal(true);
@@ -1601,11 +1611,80 @@ function getFilteredErrors() {
   });
 }
 
+function questionTitle(item) {
+  const text = (item.text || '').trim();
+  return !text || ['图片错题', '待补充题目文字'].includes(text) ? `${item.subject || '错题'} · 题目 ${item.id}` : shortText(text, 36);
+}
+
+function resetBookFilters() {
+  subjectFilter = 'all'; statusFilter = 'all'; dateFilter = 'all'; searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('dateFilter').value = 'all';
+  renderSubjectChips(); renderStatusSeg(); renderErrorList();
+}
+
+function showCaptureReceipt(item, pageImage) {
+  receiptPageImage = pageImage;
+  const receipt = document.getElementById('captureReceipt');
+  receipt.innerHTML = `<div class="receipt-heading"><span class="receipt-check" aria-hidden="true">✓</span><div><strong>已存进错题本</strong><p>${escapeHtml(questionTitle(item))}</p></div></div>${item.image ? `<img class="receipt-image" src="${imageHtml(item.image)}" alt="刚保存的题目">` : ''}<div class="receipt-actions">${pageImage ? '<button class="btn primary" onclick="continueSavedPage()">继续选下一题</button>' : ''}<button class="btn outline" onclick="navigateTo('book');resetBookFilters()">查看错题本</button><button class="text-btn" onclick="openDetail(${item.id})">补充文字或解析</button></div>`;
+  receipt.classList.remove('hidden');
+  document.getElementById('appContent').scrollTo({ top: 0 });
+}
+
+function continueSavedPage() {
+  if (!receiptPageImage || saveBusy || processingBusy) return;
+  capturedPageImage = receiptPageImage; capturedImage = receiptPageImage;
+  navigateTo('capture'); showCapturedImage(); openCropModal();
+}
+
+let savedTextDraft = null;
+async function recognizeSavedQuestion(id, vision) {
+  if (processingBusy || saveBusy || ocrBusy) return;
+  const item = findError(id);
+  if (!item?.image) return;
+  if (vision && !canUseAi()) { closeModal(); openAiSettings(); showToast('AI 需自行配置识图模型，原题已保存'); return; }
+  if (vision && !navigator.onLine) { showToast('AI 需要联网，原题已经保存在本机'); return; }
+  if (!vision) {
+    await checkOfflinePack();
+    if (!offlineReady) { showToast('原题已保存；如需提取文字，请先下载离线识别包'); return; }
+  }
+  if (processingBusy || saveBusy || ocrBusy) return;
+  processingBusy = true; ocrBusy = true;
+  showProcessing(vision ? 'AI 正在识图' : '正在提取印刷文字', vision ? '题图将发送到你配置的服务，原记录保留' : '图片留在本机，原记录保留');
+  try {
+    const text = vision ? await callVisionOcr(item.image) : await runTesseractOcr(item.image);
+    if (!text.trim()) { showToast('未提取到可用文字，原题保持不变'); return; }
+    savedTextDraft = { id, raw: text, updatedAt: item.updatedAt };
+    const low = !vision && ocrQuality?.low;
+    openModal('核对提取的文字', `<div class="form-stack record-save-form"><img class="detail-img" src="${imageHtml(item.image)}" alt="已保存的原题"><p class="field-help">${low ? '这次识别结果不可靠，手写和表格可能出现大量错误。' : '请对照原图核对公式与条件。'}确认前不会修改已保存的题目。</p><label class="field-label" for="savedOcrText">提取结果（可修改）</label><textarea id="savedOcrText" rows="7">${escapeHtml(normalizeOcrText(text))}</textarea>${low ? '<label class="ocr-confirm"><input type="checkbox" id="savedOcrConfirmed">我已对照原图核对文字</label>' : ''}<div class="modal-actions"><button class="btn outline" onclick="openDetail(${id})">保留原记录</button><button class="btn primary" onclick="applySavedQuestionText()">确认并保存文字</button></div></div>`);
+  } catch (error) { notifyFailure(error); }
+  finally { hideProcessing(); processingBusy = false; ocrBusy = false; }
+}
+
+async function applySavedQuestionText() {
+  if (saveBusy || !savedTextDraft) return;
+  const field = document.getElementById('savedOcrText');
+  if (!field) return;
+  const confirmBox = document.getElementById('savedOcrConfirmed');
+  if (confirmBox && !confirmBox.checked) { showToast('请先对照原图核对，或保留原记录'); return; }
+  const text = field.value.trim();
+  if (!text) { showToast('没有可保存的文字，原记录保留'); return; }
+  const draft = savedTextDraft, item = findError(draft.id);
+  if (!item || item.updatedAt !== draft.updatedAt) { showToast('原记录已变更，请重新打开后提取'); return; }
+  saveBusy = true;
+  try {
+    await storeUpdate(item.id, { text, ocrRaw: draft.raw });
+    await loadErrors(); savedTextDraft = null;
+    updateHome(); renderErrorList(); openDetail(item.id); showToast('文字已更新，原图保留');
+  } catch (error) { notifyFailure(error); }
+  finally { saveBusy = false; }
+}
+
 function renderErrorList() {
   const container = document.getElementById('errorList');
   const filtered = getFilteredErrors();
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="es-icon" aria-hidden="true">＋</div><div class="es-title">还没有找到题目</div><div class="es-desc">可以记一道新题，或调整筛选条件。</div></div>';
+    container.innerHTML = allErrors.length ? '<div class="empty-state"><div class="es-title">没有符合条件的题目</div><div class="es-desc">换个关键词，或看看全部错题。</div><button class="btn outline" onclick="resetBookFilters()">显示全部错题</button></div>' : '<div class="empty-state"><div class="es-title">从第一道题开始</div><div class="es-desc">拍下来、框选、保存。文字可以以后再补。</div><button class="btn primary" onclick="goCapture()">记一道错题</button><button class="text-btn" onclick="uploadImage()">从相册选择</button></div>';
     return;
   }
   container.innerHTML = filtered.map(e => {
@@ -1625,12 +1704,12 @@ function renderErrorList() {
           ${selectHtml}
           <span class="subject-avatar ${subjectClass(e.subject)}">${subjectIcon(e.subject)}</span>
           <span class="ec-info">
-            <span class="ec-topic">${escapeHtml(e.topic || '未分类')}</span>
+            <span class="ec-topic">${escapeHtml(questionTitle(e))}</span>
             <span class="ec-date">${dateLabel(e.createdAt)} · ${escapeHtml(e.subject)}</span>
           </span>
         </div>
-        <div class="ec-preview">${escapeHtml(e.text)}</div>
-        <div class="ec-tags">${statusTag}${causeTag}${aiTag}</div>
+        ${e.image ? `<img class="question-thumb" src="${imageHtml(e.image)}" alt="${escapeHtml(questionTitle(e))}" loading="lazy">` : `<div class="ec-preview">${escapeHtml(e.text)}</div>`}
+        <div class="ec-tags">${statusTag}${e.topic && e.topic !== '未分类' ? `<span class="tag">${escapeHtml(e.topic)}</span>` : ''}${e.cause ? causeTag : ''}${aiTag}</div>
       </div>
     `;
   }).join('');
@@ -1746,7 +1825,8 @@ function openDetail(id) {
     : `
       <div class="modal-content-block">
         <div class="section-title"><span>复盘笔记</span></div>
-        <button class="btn teal full" onclick="generateAnalysis(${e.id}, false)">生成复盘笔记</button>
+        <button class="btn teal full" onclick="generateAnalysis(${e.id}, false)">${canUseAi() && navigator.onLine ? 'AI 讲解（联网）' : '整理复盘笔记（规则生成）'}</button>
+        ${!canUseAi() ? '<p class="field-help">需要 AI 看图讲解时，可在“我的”中配置自己的识图模型。</p>' : ''}
       </div>
     `;
 
@@ -1761,6 +1841,7 @@ function openDetail(id) {
       </div>
     </div>
     ${e.image ? `<div class="modal-content-block"><img class="detail-img" src="${imageHtml(e.image)}" alt="错题图片"></div>` : ''}
+    ${e.image ? `<details class="saved-text-tools"><summary>提取图片文字（选用）</summary><p class="field-help">原图已经保存。印刷体可离线识别；手写和公式可尝试自配视觉模型，结果需要核对。</p><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},false)">离线提取文字</button><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},true)">${canUseAi() ? 'AI 识图（联网）' : '配置 AI 识图'}</button></details>` : ''}
     <div class="modal-content-block">
       <div class="section-title"><span>题目</span></div>
       <div class="modal-text">${escapeHtml(e.text)}</div>
@@ -2040,7 +2121,8 @@ function initReview() {
     document.getElementById('reviewActions').classList.add('hidden');
     document.getElementById('reviewProgress').classList.add('hidden');
     document.getElementById('reviewEmpty').classList.remove('hidden');
-    document.getElementById('reviewStatus').textContent = '所有错题都已掌握，或今天没有到期任务';
+    document.getElementById('reviewStatus').textContent = allErrors.length ? '今天没有到期的复习任务' : '保存第一道题后，就可以在这里复习';
+    document.getElementById('reviewEmpty').innerHTML = allErrors.length ? '<div class="es-icon">✓</div><div class="es-title">今天先到这里</div><div class="es-desc">也可以回错题本，挑一道题再看看。</div><button class="btn outline" onclick="navigateTo(\'book\');resetBookFilters()">查看错题本</button>' : '<div class="es-title">还没有要复习的题</div><div class="es-desc">先记一道错题，原图就能用来复习。</div><button class="btn primary" onclick="goCapture()">记一道错题</button>';
     return;
   }
 

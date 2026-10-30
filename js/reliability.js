@@ -9,7 +9,7 @@ function canUseAi() {
 function openImageOnly() {
   if (!capturedImage || ocrBusy) return;
   lastOcrRaw = ''; saveImageSnapshot = capturedImage;
-  openSaveModal('待补充题目文字', '');
+  openSaveModal('', '', true);
 }
 
 function openAiSettings() {

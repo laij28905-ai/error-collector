@@ -23,7 +23,7 @@ function keepOcrImageOnly() {
   const answer = document.getElementById('formAnswer')?.value;
   capturedImage = saveImageSnapshot;
   lastOcrRaw = ''; ocrCandidate = ''; ocrRoiCount = 0; ocrQuality = null;
-  openSaveModal('待补充题目文字', subject);
+  openSaveModal('', subject, true);
   if (topic) document.getElementById('formTopic').value = topic;
   if (cause) document.getElementById('formCause').value = cause;
   if (answer) document.getElementById('formAnswer').value = answer;

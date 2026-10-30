@@ -30,7 +30,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('ocr-quality-v1','acceptance-v5'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('photo-first-v1','acceptance-v6'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -76,7 +76,7 @@ async function recognize(file){
   await page.evaluate(()=>{closeModal();navigateTo('capture')});
   await page.locator('#fileInput').setInputFiles(file);
   await page.waitForFunction(()=>!!capturedImage);
-  await page.locator('#btnOcr').click();
+  await page.evaluate(()=>runOcr());
   await page.waitForFunction(()=>!ocrBusy,null,{timeout:75000});
   return page.evaluate(()=>({raw:lastOcrRaw,normalized:document.getElementById('formText')?.value||''}));
 }
@@ -89,6 +89,39 @@ if(process.argv.includes('--serve')) {
   await test('Fresh install verifies all 12 offline resources',async()=>{
     await page.goto(base+'/');
     await page.waitForURL(base+'/app.html');
+    await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    assert.equal(await page.evaluate(()=>offlineReady),false);
+    await page.evaluate(()=>navigateTo('book'));
+    assert(await page.getByRole('button',{name:'记一道错题',exact:true}).isVisible());
+    await page.evaluate(()=>navigateTo('review'));
+    assert(await page.getByText('还没有要复习的题',{exact:true}).isVisible());
+    const firstPhoto=await fixture(['第 3 题：用原图记录错题','无需文字识别，也不需要配置模型。'],'photo-first.png');
+    await context.close();killServer();await verifyServerStopped();await open();
+    await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await page.setViewportSize({width:375,height:812});
+    await page.locator('#fileInput').setInputFiles(firstPhoto);await page.waitForFunction(()=>!!capturedImage);
+    assert(await page.locator('#btnOcr').isHidden());assert(await page.locator('#btnAiCapture').isHidden());
+    await page.locator('#saveImageOnly').click();
+    assert.equal(await page.locator('#formText').inputValue(),'');
+    await page.getByRole('button',{name:'保存错题',exact:true}).click();await page.waitForFunction(()=>!saveBusy);
+    assert.equal(await page.evaluate(()=>allErrors.length),1);
+    assert(await page.locator('#captureReceipt').isVisible());
+    await page.screenshot({path:path.join(output,'photo-receipt-375x812.png'),animations:'disabled'});
+    await page.getByRole('button',{name:'继续选下一题',exact:true}).click();
+    assert(await page.locator('#cropStage').isVisible());await page.evaluate(()=>closeModal());
+    await page.reload();await page.waitForFunction(()=>allErrors.length===1);
+    assert(await page.evaluate(()=>!!allErrors[0].image && !allErrors[0].ocrRaw));
+    await page.evaluate(()=>navigateTo('book'));
+    assert(await page.locator('.question-thumb').isVisible());
+    assert(!(await page.locator('.ec-topic').textContent()).includes('未分类'));
+    await page.screenshot({path:path.join(output,'photo-book-375x812.png'),animations:'disabled'});
+    await page.locator('#searchInput').fill('不存在的搜索词');
+    await page.getByRole('button',{name:'显示全部错题',exact:true}).click();
+    assert.equal(await page.locator('.question-thumb').count(),1);
+    await page.evaluate(async()=>{await storeDelete(allErrors[0].id);await loadErrors();updateHome();navigateTo('home')});
+    console.log('PHOTO_FIRST: server killed; no OCR pack/key; blank optional text saved image; receipt and next crop; reload preserved; thumbnail and empty-state actions verified');
+    await startServer(serverPort);
+    await page.locator('#prepareOffline').click();
     await page.waitForFunction(()=>offlineReady,null,{timeout:90000});
     assert.equal(await page.locator('#offlineStatus').textContent(),'离线识别已就绪');
     await page.screenshot({path:path.join(output,'home-desktop.png'),animations:'disabled'});
@@ -229,10 +262,10 @@ if(process.argv.includes('--serve')) {
     assert.equal(await page.locator('#ocrTextConfirmed').isChecked(),false);
     await page.getByRole('button',{name:'清除识别文字，仅保留图片',exact:true}).click();
     assert.equal(await page.evaluate(()=>lastOcrRaw),'');
-    assert.equal(await page.locator('#formText').inputValue(),'待补充题目文字');
+    assert.equal(await page.locator('#formText').inputValue(),'');
     await page.getByRole('button',{name:'保存错题',exact:true}).click();await page.waitForFunction(()=>!saveBusy);
     assert.equal(await page.evaluate(()=>allErrors.length),before+1);
-    assert(await page.evaluate(()=>allErrors.some(e=>e.text==='待补充题目文字' && !!e.image && !e.ocrRaw)));
+    assert(await page.evaluate(()=>allErrors.some(e=>e.text==='图片错题' && !!e.image && !e.ocrRaw)));
     await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
     await page.evaluate(async()=>{
       const original=ocrWorker;
@@ -265,8 +298,19 @@ if(process.argv.includes('--serve')) {
     await page.screenshot({path:path.join(output,'ai-settings-375x812.png'),animations:'disabled'});
     await page.evaluate(()=>navigateTo('capture'));
     await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
-    await page.locator('#btnAiCapture').click();await page.waitForFunction(()=>!ocrBusy);
+    await page.evaluate(()=>runAiCapture());await page.waitForFunction(()=>!ocrBusy);
     assert((await page.locator('#formText').inputValue()).includes('f(x)=x²'));
+    await page.evaluate(()=>{closeModal();openDetail(allErrors.find(e=>e.image).id)});
+    const savedBefore=await page.evaluate(()=>({id:allErrors.find(e=>e.image).id,image:allErrors.find(e=>e.image).image,count:allErrors.length}));
+    await page.locator('.saved-text-tools summary').click();
+    await page.getByRole('button',{name:'AI 识图（联网）',exact:true}).click();
+    await page.waitForFunction(()=>!processingBusy);
+    assert((await page.locator('#savedOcrText').inputValue()).includes('f(x)=x²'));
+    assert.equal(await page.evaluate(()=>allErrors.length),savedBefore.count);
+    await page.getByRole('button',{name:'确认并保存文字',exact:true}).click();await page.waitForFunction(()=>!saveBusy);
+    assert.equal(await page.evaluate(id=>findError(id).image,savedBefore.id),savedBefore.image);
+    assert.equal(await page.evaluate(()=>allErrors.length),savedBefore.count);
+    assert((await page.evaluate(id=>findError(id).text,savedBefore.id)).includes('f(x)=x²'));
     await page.evaluate(()=>{closeModal();retakeCapture()});
     await page.evaluate(endpoint=>{settings.aiEndpoint=endpoint;settings.aiKey=''},base+'/mock-ai');
     await page.evaluate(()=>generateAnalysis(allErrors.find(e=>e.image).id,true));

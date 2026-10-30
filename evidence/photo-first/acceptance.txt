@@ -1,0 +1,113 @@
+HTTP_SERVER_READY {"pid":70628,"port":58975}
+COMMAND: taskkill.exe /PID 70628 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 70628 (child process of PID 66696) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+PHOTO_FIRST: server killed; no OCR pack/key; blank optional text saved image; receipt and next crop; reload preserved; thumbnail and empty-state actions verified
+HTTP_SERVER_READY {"pid":73828,"port":58975}
+PASS Fresh install verifies all 12 offline resources
+COMMAND: taskkill.exe /PID 73828 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 73828 (child process of PID 66696) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+COLD_START_REMOTE_REQUESTS: 0
+COLD_START_OCR_TEXT: {"raw":"已 知 一 辆 汽 车 从 静 止 开 始 做 匀 加 速 直 线 运 动 。\n加 速 度 为 2 米 每 秒 平 方 , 求 5 秒 后 的 速 度 。\n","normalized":"已知一辆汽车从静止开始做匀加速直线运动 。\n加速度为 2 米每秒平方，求 5 秒后的速度 。"}
+COLD_START_SAVED: {"count":1,"id":2,"imageBytes":49491}
+PASS Cold browser restart offline, no OCR warm-up recognition
+PASS Five pages, three rounds: no console errors
+PASS Import cancel and replace confirmation cancel preserve exact data
+PASS Invalid backup subjects rejected before writing
+PASS Replacement write failure rolls back clear and leaves all records
+PASS Five analysis runs including two storage exceptions always release overlay
+PASS Repeated review click records one rating and does not skip next question
+PASS Automatic sync merges newer timestamps without deleting local-only records
+FORMULA_CORRECTION_UI: {"roiLines":2,"low":false,"marks":16,"modalScrollable":true,"accepted":true,"rawPreserved":"已 知 函 数 f(W) = x? - 2x + 1, 求 最 小 值 。\n当 x > 0 时 , 求 y(x + 1) 的 取 值 范 围 。\n计 算 积 分 x dx,\n","visionDefaultHidden":true}
+OCR_QUALITY: injected confidence=18 warns; no ROI retry; unconfirmed save blocked; 375x812 single-column comparison collapsed; image-only saved without garbage; empty OCR preserves image
+PASS Low-quality OCR stays a draft, image fallback saves, mobile editor precedes collapsed comparison
+HTTP_SERVER_READY {"pid":74644,"port":58975}
+AI_VISION_PAYLOAD: image attached; provider key cleared on switch; incorrect vision probe rejected; capture OCR opened editor
+PASS Online AI response and failed-network template fallback
+PASS Network timeout covers a stalled response body
+PASS SW update waits for action and retains independent OCR cache
+COMMAND: taskkill.exe /PID 74644 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 74644 (child process of PID 66696) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+PASS Offline non-navigation request returns error, not HTML
+TOUCH_CROP: 375x812, touch events; width/height independent; full page retained; 3 saves; failed save preserved draft; server stopped
+PASS Mobile touch crop resizes independently and saves three questions from one page offline
+HTTP_SERVER_READY {"pid":55400,"port":58975}
+PASS IndexedDB unavailable: visible fallback and successful local save
+[
+  {
+    "name": "Fresh install verifies all 12 offline resources",
+    "status": "passed"
+  },
+  {
+    "name": "Cold browser restart offline, no OCR warm-up recognition",
+    "status": "passed"
+  },
+  {
+    "name": "Five pages, three rounds: no console errors",
+    "status": "passed"
+  },
+  {
+    "name": "Import cancel and replace confirmation cancel preserve exact data",
+    "status": "passed"
+  },
+  {
+    "name": "Invalid backup subjects rejected before writing",
+    "status": "passed"
+  },
+  {
+    "name": "Replacement write failure rolls back clear and leaves all records",
+    "status": "passed"
+  },
+  {
+    "name": "Five analysis runs including two storage exceptions always release overlay",
+    "status": "passed"
+  },
+  {
+    "name": "Repeated review click records one rating and does not skip next question",
+    "status": "passed"
+  },
+  {
+    "name": "Automatic sync merges newer timestamps without deleting local-only records",
+    "status": "passed"
+  },
+  {
+    "name": "Synthetic formula OCR output (not real-photo correction acceptance)",
+    "status": "recorded",
+    "correct": [],
+    "raw": "已 知 函 数 f(W) = x? - 2x + 1, 求 最 小 值 。\n当 x > 0 时 , 求 y(x + 1) 的 取 值 范 围 。\n计 算 积 分 x dx,\n",
+    "normalized": "已知函数 f(W) = x? - 2x + 1, 求最小值 。\n当 x > 0 时，求 y(x + 1) 的取值范围 。\n计算积分 x dx,"
+  },
+  {
+    "name": "Low-quality OCR stays a draft, image fallback saves, mobile editor precedes collapsed comparison",
+    "status": "passed"
+  },
+  {
+    "name": "Online AI response and failed-network template fallback",
+    "status": "passed"
+  },
+  {
+    "name": "Network timeout covers a stalled response body",
+    "status": "passed"
+  },
+  {
+    "name": "SW update waits for action and retains independent OCR cache",
+    "status": "passed"
+  },
+  {
+    "name": "Offline non-navigation request returns error, not HTML",
+    "status": "passed"
+  },
+  {
+    "name": "Mobile touch crop resizes independently and saves three questions from one page offline",
+    "status": "passed"
+  },
+  {
+    "name": "IndexedDB unavailable: visible fallback and successful local save",
+    "status": "passed"
+  }
+]
