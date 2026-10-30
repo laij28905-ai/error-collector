@@ -1,0 +1,14 @@
+HTTP_SERVER_READY {"pid":74044,"port":52537}
+COMMAND: taskkill.exe /PID 74044 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 74044 (child process of PID 82916) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+PHOTO_FIRST: server killed; no OCR pack/key; blank optional text saved image; receipt and next crop; reload preserved; thumbnail and empty-state actions verified
+HTTP_SERVER_READY {"pid":81456,"port":52537}
+page.waitForFunction: Timeout 90000ms exceeded.
+    at C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:126:16
+    at async test (C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:58:29)
+    at async C:\Users\Lenovo\Documents\ChatGPT\创客竞赛\error-collector\tests\acceptance.cjs:90:3 {
+  log: [],
+  name: 'TimeoutError'
+}

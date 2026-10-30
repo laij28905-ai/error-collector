@@ -1,9 +1,9 @@
 /* OpenAI-compatible image chat. Presets are documented in docs/ai-setup.md. */
 const AI_SERVICES = {
-  openai: { endpoint: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', hint: '使用支持图片输入的模型，模型名称可修改。' },
-  deepseek: { endpoint: 'https://api.deepseek.com', model: 'deepseek-flash', hint: '使用官方支持识图的 Flash 模型；其他型号请先测试。' },
-  gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', hint: '填写 Google AI Studio 的 Key，使用 OpenAI 兼容地址。' },
-  qwen: { endpoint: '', model: 'qwen3-vl-plus', hint: '请从百炼控制台复制与你的地域、业务空间匹配的 OpenAI 兼容地址。' },
+  openai: { endpoint: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', label: 'GPT-4.1 mini · 识图', hint: '模型和地址已配好，只需填写 OpenAI API Key。' },
+  deepseek: { endpoint: 'https://api.deepseek.com', model: 'deepseek-flash', label: 'DeepSeek Flash · 识图', hint: '模型和地址已配好，只需填写 DeepSeek API Key。自动使用官方接口标识 deepseek-flash，不需要输入产品名称。' },
+  gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash · 识图', hint: '模型和地址已配好，填写 Google AI Studio 的 API Key。' },
+  qwen: { endpoint: '', model: 'qwen3-vl-plus', label: 'Qwen3 VL Plus · 识图', hint: '模型可直接选择；百炼地址包含你的业务空间，请从控制台复制对应地域的兼容地址。' },
   custom: { endpoint: '', model: '', hint: '支持 OpenAI Chat Completions 格式及 image_url 图片输入的服务。原生 Claude、Responses 等不同协议不能直接填写。' }
 };
 let aiTesting = false;
@@ -60,12 +60,24 @@ async function requestAi(messages, config = aiConfig()) {
     throw error;
   }
   if (!response.ok) {
-    const hints = { 400: '请求不被支持，请检查模型是否支持图片及接口格式', 401: 'API Key 无效或已过期', 403: '账号无权访问该模型或当前地区受限', 404: '接口地址或模型名称不存在', 413: '图片过大，请裁剪后重试', 422: '模型不支持当前图片或请求格式', 429: '请求受限，请检查余额、配额，或稍后重试' };
-    throw new Error(hints[response.status] || `模型服务暂不可用（${response.status}）`);
+    let detail = null;
+    try { detail = await response.json(); } catch (_) { /* Some services return plain text. */ }
+    throw new Error(aiFailureHint(response.status, detail));
   }
   let data;
   try { data = await response.json(); } catch (_) { throw new Error('接口没有返回有效 JSON，请检查兼容地址'); }
   return aiResponseText(data);
+}
+
+function aiFailureHint(status, data) {
+  // Match known causes, never display a provider's raw response (it may echo credentials).
+  const error = data?.error;
+  const detail = [error?.code, error?.type, error?.message, data?.code, data?.message].filter(x => typeof x === 'string').join(' ').slice(0, 2000);
+  if (status === 401) return 'API Key 无效或已过期，请使用当前服务商的 API Key';
+  if (status === 402 || /insufficient[_\s-]*(balance|quota)|balance.*insufficient|余额不足/i.test(detail)) return 'API 余额或配额不足，请在服务商控制台检查；聊天会员不等于 API 额度';
+  if ([400, 404, 422].includes(status) && /model[_\s-]*not[_\s-]*(found|exist)|invalid[_\s-]*model|model.*(does not exist|not exist|not found)|模型.*(不存在|无效)/i.test(detail)) return '模型名称不存在，请在“识图模型”中选择预设型号，不要填写产品展示名称';
+  const hints = { 400: '服务拒绝了请求（HTTP 400）。请先选预设识图模型；若仍失败，需核对该账号的模型权限和图片格式', 403: '账号无权访问该模型或当前地区受限', 404: '接口地址或模型不存在（HTTP 404），请重新选择服务和识图模型', 413: '图片过大，请裁剪后重试', 422: '模型不支持当前图片或请求格式（HTTP 422），请改选识图模型', 429: '请求过于频繁或额度受限（HTTP 429），请检查配额或稍后再试' };
+  return hints[status] || `模型服务暂不可用（HTTP ${status}）`;
 }
 
 function aiFormConfig() {
@@ -79,18 +91,45 @@ function updateAiServiceHint() {
   const service = AI_SERVICES[document.getElementById('aiProvider').value] || AI_SERVICES.custom;
   document.getElementById('aiProviderHint').textContent = service.hint;
 }
+function renderAiModelChoices(model) {
+  const provider = document.getElementById('aiProvider').value;
+  const service = AI_SERVICES[provider] || AI_SERVICES.custom;
+  const select = document.getElementById('aiModelChoice');
+  select.replaceChildren();
+  if (service.model) select.add(new Option(service.label, service.model));
+  select.add(new Option('自定义型号（高级）', '__custom'));
+  select.value = service.model && model === service.model ? service.model : '__custom';
+  document.getElementById('aiCustomModel').classList.toggle('hidden', select.value !== '__custom');
+  const endpointEditable = !service.endpoint;
+  document.getElementById('aiEndpointField').classList.toggle('hidden', !endpointEditable);
+  document.getElementById('aiEndpoint').readOnly = !endpointEditable;
+  document.getElementById('aiEndpointInfo').textContent = service.endpoint ? '接口地址已自动设置：' + document.getElementById('aiEndpoint').value : '';
+  document.getElementById('aiModelHelp').textContent = select.value === '__custom' && service.model ? '当前是自填型号；不确定时，请从上方列表选择识图模型。切换型号不会清除本服务的 Key。' : '列表内为官方文档支持图片输入的型号，账号权限与网络仍需测试。';
+}
+function chooseAiModel() {
+  const choice = document.getElementById('aiModelChoice').value;
+  document.getElementById('aiCustomModel').classList.toggle('hidden', choice !== '__custom');
+  document.getElementById('aiModel').value = choice === '__custom' ? '' : choice;
+  document.getElementById('aiModelHelp').textContent = choice === '__custom' ? '请填写服务商文档中的 API 模型标识，产品展示名称可能无法调用。' : '型号已自动填写，可测试连接并保存。';
+  resetAiTest();
+}
 function chooseAiService() {
   const service = AI_SERVICES[document.getElementById('aiProvider').value] || AI_SERVICES.custom;
   document.getElementById('aiEndpoint').value = service.endpoint;
   document.getElementById('aiModel').value = service.model;
+  renderAiModelChoices(service.model);
   resetAiTest(true); updateAiServiceHint();
 }
 function inferAiService(endpoint) {
-  const base = String(endpoint || '').replace(/\/+$/, '');
+  let base;
+  try { base = aiBaseUrl(endpoint); } catch (_) { return 'custom'; }
+  if (base === 'https://api.deepseek.com/v1') return 'deepseek';
+  if (/^https:\/\/[a-z0-9-]+\.(cn-beijing|ap-southeast-1|us-east-1)\.maas\.aliyuncs\.com\/compatible-mode\/v1$/.test(base)) return 'qwen';
   return Object.keys(AI_SERVICES).find(key => AI_SERVICES[key].endpoint && AI_SERVICES[key].endpoint === base) || 'custom';
 }
 function fillAiServiceForm() {
   document.getElementById('aiProvider').value = inferAiService(settings.aiEndpoint);
+  renderAiModelChoices(settings.aiModel || '');
   updateAiServiceHint(); resetAiTest();
 }
 

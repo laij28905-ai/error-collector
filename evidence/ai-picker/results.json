@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-30T15:25:58.702Z",
+  "results": [
+    {
+      "name": "Online AI response and failed-network template fallback",
+      "status": "passed"
+    }
+  ],
+  "notes": "Existing AI workflow only; local mock, no real paid API or OCR pack download."
+}

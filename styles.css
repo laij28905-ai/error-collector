@@ -1586,5 +1586,6 @@ body[data-theme="dark"] .app-header,body[data-theme="dark"] .app-nav { backgroun
 .backup-entry { margin:8px 0; }#page-profile > .field-help { margin-bottom:22px; }
 .saved-text-tools { margin:12px 0 20px; border:1px solid var(--line); border-radius:12px; padding:8px 12px; }.saved-text-tools .btn { margin:10px 6px 0 0; }
 #offlineProgress { width:100%; height:8px; accent-color:var(--primary); }#offlineBytes { font-size:12px; }
+.ai-endpoint-info { overflow-wrap:anywhere; font-size:12px; }.ai-endpoint-info:empty { display:none; }
 .modal-sheet { scroll-padding-bottom: 96px; overscroll-behavior: contain; }
 @media(max-width: 600px) { .modal-sheet { padding: 18px 18px calc(18px + env(safe-area-inset-bottom,0px)); max-height: 90dvh; }.modal-actions { bottom: -18px; }.ocr-diff-grid { gap: 6px; }.ocr-diff-grid section { padding: 9px; }.capture-secondary { flex-wrap: wrap; } }

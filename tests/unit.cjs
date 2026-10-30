@@ -33,6 +33,14 @@ console.log('PASS: 5 OCR normalization pairs; unsafe/invalid input rejected; new
 assert.equal(run('aiBaseUrl("https://api.example.com/v1/chat/completions/")'),'https://api.example.com/v1');
 for(const address of ['http://api.example.com','https://user:secret@api.example.com','https://api.example.com?key=secret','https://{WorkspaceId}.example.com']) assert.throws(()=>run(`aiBaseUrl(${JSON.stringify(address)})`));
 assert.throws(()=>run('aiConfig({aiEndpoint:"https://api.example.com",aiModel:"vision",aiKey:""})'),/Key/);
+assert.equal(run('inferAiService("https://api.deepseek.com/v1/chat/completions")'),'deepseek');
+assert.equal(run('inferAiService("https://api.deepseek.com.attacker.example")'),'custom');
+assert.equal(run('inferAiService("https://space-123.cn-beijing.maas.aliyuncs.com/compatible-mode/v1")'),'qwen');
+assert.match(run('aiFailureHint(400,{error:{message:"Model Not Exist"}})'),/模型名称不存在/);
+assert.match(run('aiFailureHint(402,null)'),/余额/);
+assert.match(run('aiFailureHint(429,{error:{code:"insufficient_quota"}})'),/余额或配额/);
+assert.match(run('aiFailureHint(400,{error:{message:"unknown, echoed secret-key"}})'),/HTTP 400/);
+assert(!run('aiFailureHint(400,{error:{message:"unknown, echoed secret-key"}})').includes('secret-key'));
 assert.equal(run('aiUserContent("题目","data:image/png;base64,YQ==")[1].image_url.url'),'data:image/png;base64,YQ==');
 assert.throws(()=>run('aiUserContent("题目","https://example.com/tracker.png")'),/题图/);
 assert.equal(run('aiResponseText({choices:[{message:{content:[{type:"text",text:"答案"}]}}]})'),'答案');

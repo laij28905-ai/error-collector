@@ -17,6 +17,7 @@ server=http.createServer((req,res)=>{
     lastAiRequest=JSON.parse(body);
     if(apiMode==='fail'){res.writeHead(503);res.end('Unavailable');return;}
     if(apiMode==='unauthorized'){res.writeHead(401);res.end('Unauthorized');return;}
+    if(apiMode==='bad-model'){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:{message:'Model Not Exist'}}));return;}
     res.setHeader('Content-Type','application/json');
     const prompt=JSON.stringify(lastAiRequest.messages);
     const content=prompt.includes('四位数字')?(apiMode==='vision-pass'?'1234':'无法读取'):prompt.includes('只返回题目文字')?'已知函数 f(x)=x²，求 f(2)。':JSON.stringify({analysis:'检查配方法中的常数项。',solution:'f(x)=(x−1)²，最小值为 0。',similar:['求 g(x)=x²−4x+5 的最小值。'],advice:'明天再做一次。'});
@@ -30,7 +31,7 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('photo-first-v1','acceptance-v6'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('ai-picker-v1','acceptance-v7'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0) {
@@ -55,7 +56,7 @@ const launch={headless:true};
 if(process.env.BROWSER_EXE)launch.executablePath=process.env.BROWSER_EXE;
 const profile=path.join(root,'.work','browser-acceptance-'+Date.now());
 const test=async(name,fn)=>{await fn();results.push({name,status:'passed'});fs.writeFileSync(path.join(output,'acceptance-progress.json'),JSON.stringify(results,null,2));console.log('PASS',name)};
-let context,page,base;
+let context,page,base,plain;
 const open=async()=>{
   context=await chromium.launchPersistentContext(profile,{...launch,viewport:{width:1360,height:960},hasTouch:true});
   page=await context.newPage();
@@ -86,6 +87,15 @@ if(process.argv.includes('--serve')) {
 } else (async()=>{
   await startServer();base='http://127.0.0.1:'+serverPort;
   await open();
+  if(process.argv.includes('--ai-only')) {
+    await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await page.setViewportSize({width:375,height:812});
+    plain=await fixture(['已知函数 f(x)=x²，求 f(2)。'],'ai-fixture.png');
+    await page.evaluate(async image=>{await storeAdd({text:'AI 测试题',subject:'数学',image,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});await loadErrors()},'data:image/png;base64,'+fs.readFileSync(plain).toString('base64'));
+    await test('Online AI response and failed-network template fallback',verifyAiWorkflow);
+    fs.writeFileSync(path.join(output,'ai-acceptance.json'),JSON.stringify({date:new Date().toISOString(),results,notes:'Existing AI workflow only; local mock, no real paid API or OCR pack download.'},null,2));
+    return;
+  }
   await test('Fresh install verifies all 12 offline resources',async()=>{
     await page.goto(base+'/');
     await page.waitForURL(base+'/app.html');
@@ -126,7 +136,7 @@ if(process.argv.includes('--serve')) {
     assert.equal(await page.locator('#offlineStatus').textContent(),'离线识别已就绪');
     await page.screenshot({path:path.join(output,'home-desktop.png'),animations:'disabled'});
   });
-  const plain=await fixture(['已知一辆汽车从静止开始做匀加速直线运动。','加速度为 2 米每秒平方，求 5 秒后的速度。'],'printed-question.png');
+  plain=await fixture(['已知一辆汽车从静止开始做匀加速直线运动。','加速度为 2 米每秒平方，求 5 秒后的速度。'],'printed-question.png');
   const formula=await fixture(['已知函数 f(x) = x² - 2x + 1，求最小值。','当 x ≥ 0 时，求 √(x + 1) 的取值范围。','计算积分 ∫ x dx。'],'formula-input.png');
   await test('Cold browser restart offline, no OCR warm-up recognition',async()=>{
     await context.close();killServer();await verifyServerStopped();await open();
@@ -277,11 +287,43 @@ if(process.argv.includes('--serve')) {
     console.log('OCR_QUALITY: injected confidence=18 warns; no ROI retry; unconfirmed save blocked; 375x812 single-column comparison collapsed; image-only saved without garbage; empty OCR preserves image');
     await page.evaluate(()=>{closeModal();retakeCapture()});
   });
-  await test('Online AI response and failed-network template fallback',async()=>{
-    await startServer(serverPort);
+  async function verifyAiWorkflow() {
+    if(!serverChild)await startServer(serverPort);
     await page.evaluate(()=>{navigateTo('profile');document.getElementById('aiSettings').open=true;document.getElementById('aiKey').value='previous-provider-key';document.getElementById('aiProvider').value='deepseek';chooseAiService()});
     assert.equal(await page.locator('#aiKey').inputValue(),'');
     assert.equal(await page.locator('#aiModel').inputValue(),'deepseek-flash');
+    assert.equal(await page.locator('#aiModelChoice').inputValue(),'deepseek-flash');
+    assert(await page.locator('#aiModel').isHidden());
+    assert(await page.locator('#aiEndpoint').isHidden());
+    for(const [provider,model] of [['openai','gpt-4.1-mini'],['gemini','gemini-3.8-flash'],['qwen','qwen3-vl-plus']]) {
+      await page.selectOption('#aiProvider',provider);
+      assert.equal(await page.locator('#aiModelChoice').inputValue(),model);
+      assert.equal(await page.locator('#aiModel').inputValue(),model);
+    }
+    assert(await page.locator('#aiEndpoint').isVisible()); // Workspace-specific address stays explicit.
+    const beforeAiSettings=await page.evaluate(()=>({...settings}));
+    await page.evaluate(()=>{settings.aiEndpoint='https://api.deepseek.com';settings.aiModel='Deepseek-V4.1-Flash';settings.aiKey='mock-existing-key';fillSettingsForm()});
+    assert.equal(await page.locator('#aiModelChoice').inputValue(),'__custom');
+    assert.equal(await page.locator('#aiModel').inputValue(),'Deepseek-V4.1-Flash');
+    await page.selectOption('#aiModelChoice','deepseek-flash');
+    assert.equal(await page.locator('#aiKey').inputValue(),'mock-existing-key');
+    await page.evaluate(()=>{saveSettings();fillSettingsForm()});
+    assert.equal(await page.evaluate(()=>settings.aiModel),'deepseek-flash');
+    assert.equal(await page.locator('#aiModelChoice').inputValue(),'deepseek-flash');
+    await page.locator('#aiKey').fill('');
+    await page.evaluate(()=>document.activeElement.blur());
+    await page.waitForFunction(()=>!document.getElementById('toast').classList.contains('show'));
+    await page.locator('#aiProvider').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(output,'ai-picker-375x812.png'),animations:'disabled'});
+    await page.locator('#aiSettings .btn.primary').scrollIntoViewIfNeeded();
+    const saveBox=await page.locator('#aiSettings .btn.primary').boundingBox(),navBox=await page.locator('.app-nav').boundingBox();
+    assert(saveBox.y+saveBox.height<=navBox.y);
+    await page.screenshot({path:path.join(output,'ai-picker-save-375x812.png'),animations:'disabled'});
+    await page.evaluate(original=>{settings=original;persistSettings()},beforeAiSettings);
+    await page.selectOption('#aiProvider','custom');
+    assert(await page.locator('#aiModel').isVisible());
+    assert(await page.locator('#aiEndpoint').isVisible());
+    console.log('AI_PICKER: four presets; hidden automatic address/model; legacy model preserved then corrected by selection; same-service key retained; saved choice restored; custom fields available');
     await page.evaluate(endpoint=>{document.getElementById('aiEndpoint').value=endpoint;document.getElementById('aiModel').value='mock-vision';document.getElementById('aiKey').value='';},base+'/mock-ai');
     await page.evaluate(()=>testAiVision());
     assert((await page.locator('#aiTestStatus').textContent()).includes('未正确读出'));
@@ -318,12 +360,16 @@ if(process.argv.includes('--serve')) {
     const sent=await page.evaluate(async()=>{const r=await fetch('./mock-ai/last-request');return r.json()});
     assert(sent.messages[1].content.some(x=>x.type==='image_url'&&x.image_url.url.startsWith('data:image/')));
     console.log('AI_VISION_PAYLOAD: image attached; provider key cleared on switch; incorrect vision probe rejected; capture OCR opened editor');
+    serverChild.send({apiMode:'bad-model'});await page.waitForTimeout(100);
+    await page.evaluate(()=>testAiVision());assert((await page.locator('#aiTestStatus').textContent()).includes('模型名称不存在'));
+    console.log('AI_MODEL_ERROR: HTTP 400 Model Not Exist gives actionable model-selection message');
     serverChild.send({apiMode:'unauthorized'});await page.waitForTimeout(100);
     await page.evaluate(()=>testAiVision());assert((await page.locator('#aiTestStatus').textContent()).includes('Key 无效'));
     serverChild.send({apiMode:'fail'});await page.waitForTimeout(100);await page.evaluate(()=>generateAnalysis(allErrors.find(e=>e.image).id,true));
     assert.equal(await page.evaluate(()=>allErrors.find(e=>e.image).analysis.source),'template');
     await page.evaluate(()=>{closeModal();settings.aiEndpoint='';});
-  });
+  }
+  await test('Online AI response and failed-network template fallback',verifyAiWorkflow);
   await test('Network timeout covers a stalled response body',async()=>{
     const elapsed=await page.evaluate(async url=>{const start=Date.now();try{await fetchWithTimeout(url)}catch(e){if(!e.message.includes('超时'))throw e;return Date.now()-start}throw new Error('timeout missing')},base+'/slow-body');
     assert(elapsed>=11500 && elapsed<16000);

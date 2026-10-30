@@ -212,10 +212,14 @@
           <label class="field-label" for="aiProvider">模型服务</label>
           <select id="aiProvider" onchange="chooseAiService()"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="gemini">Google Gemini</option><option value="qwen">通义千问 · 百炼</option><option value="custom">其他 OpenAI 兼容服务</option></select>
           <p id="aiProviderHint" class="field-help"></p>
-          <label class="field-label" for="aiEndpoint">接口地址</label>
-          <input id="aiEndpoint" type="url" placeholder="服务商提供的 Base URL" oninput="resetAiTest(true)">
-          <label class="field-label" for="aiModel">识图模型名称</label>
-          <input id="aiModel" type="text" placeholder="请填写支持图片输入的模型" oninput="resetAiTest()">
+          <label class="field-label" for="aiModelChoice">识图模型</label>
+          <select id="aiModelChoice" onchange="chooseAiModel()"></select>
+          <p id="aiModelHelp" class="field-help"></p>
+          <div id="aiCustomModel" class="hidden"><label class="field-label" for="aiModel">自定义模型标识</label>
+          <input id="aiModel" type="text" placeholder="服务商文档中的 API 模型标识" oninput="resetAiTest()"></div>
+          <div id="aiEndpointField" class="hidden"><label class="field-label" for="aiEndpoint">接口地址</label>
+          <input id="aiEndpoint" type="url" placeholder="服务商提供的 Base URL" oninput="resetAiTest(true)"></div>
+          <p id="aiEndpointInfo" class="field-help ai-endpoint-info"></p>
           <label class="switch-row">
             <span>在核对页显示“AI 视觉复核”按钮</span>
             <input id="useAiOcr" type="checkbox">
