@@ -94,8 +94,9 @@
     <!-- 错题本 -->
     <section id="page-book" class="page"><div class="page-intro book-heading"><div><p class="eyebrow">COLLECTION</p><h2>我的错题</h2></div><button class="btn primary" onclick="goCapture()">＋ 记一道</button></div>
       <div class="search-row">
-        <input id="searchInput" type="search" placeholder="搜索题目或知识点" oninput="setQuery(this.value)">
+        <input id="searchInput" type="search" placeholder="搜索试卷、题号或知识点" oninput="setQuery(this.value)">
       </div>
+      <div class="classification-grid book-classification"><div><label class="field-label" for="paperFilter">按试卷找题</label><select id="paperFilter" onchange="paperFilter=this.value;renderErrorList()"><option value="">全部试卷</option></select></div><div><label class="field-label" for="topicFilter">按知识点找题</label><select id="topicFilter" onchange="topicFilter=this.value;renderErrorList()"><option value="">全部知识点</option></select></div></div>
       <details class="book-filters"><summary>筛选与管理</summary><div class="batch-bar">
         <button class="btn outline" onclick="toggleBatchMode()">批量管理</button>
         <div id="batchActions" class="batch-actions hidden">
@@ -168,6 +169,7 @@
         </div>
       </div>
 
+      <div class="app-version">当前版本 · 10.31 分类与来源 <button class="text-btn" onclick="openUpdatePage()">检查更新</button></div>
       <button class="btn outline full backup-entry" onclick="exportFullBackup()">备份全部错题</button>
       <p class="field-help">错题保存在当前浏览器，换设备前记得备份。</p>
 

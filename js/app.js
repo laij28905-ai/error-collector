@@ -62,6 +62,8 @@ let allErrors = [];
 let settings = Object.assign({}, DEFAULT_SETTINGS);
 let currentPage = 'home';
 let searchQuery = '';
+let paperFilter = '', topicFilter = '';
+let sourcePageImage = null, sourcePageName = '';
 let subjectFilter = 'all';
 let statusFilter = 'all';
 let dateFilter = 'all';
@@ -1384,29 +1386,26 @@ function guessSubject(text) {
 
 /* ===================== 保存 / 编辑 ===================== */
 
+function classificationFields(subject, topic = '', paperName = '', questionNo = '') {
+  const topics = [...new Set([...(KNOWLEDGE_MAP[subject] || []), ...(topic && topic !== '未分类' ? [topic] : [])])];
+  const papers = [...new Set(allErrors.map(e => e.paperName).filter(Boolean))];
+  return `<div class="classification-fields"><strong>分类与来源 <small>选填，之后也能修改</small></strong><div class="classification-grid">
+    <div><label class="field-label" for="formSubject">学科</label><select id="formSubject" onchange="fillTopicSelect(this.value)">${SUBJECTS.map(s => `<option value="${escapeHtml(s)}" ${s === subject ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+    <div><label class="field-label" for="formTopic">知识点</label><select id="formTopic"><option value="">暂不分类</option>${topics.map(t => `<option value="${escapeHtml(t)}" ${t === topic ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}</select></div>
+    </div><label class="field-label" for="formPaperName">试卷名称 / 来源</label><input id="formPaperName" maxlength="120" list="paperSuggestions" value="${escapeHtml(paperName)}" placeholder="例如：武汉九月调考 / 数学周练 3"><datalist id="paperSuggestions">${papers.map(p => `<option value="${escapeHtml(p)}"></option>`).join('')}</datalist>
+    <label class="field-label" for="formQuestionNo">原卷题号</label><input id="formQuestionNo" maxlength="30" value="${escapeHtml(questionNo)}" placeholder="例如：3、6、16（2）"></div>`;
+}
+
 function openSaveModal(text, guessedSubject, imageOnly = false) {
   editingId = null;
   saveImageSnapshot = capturedImage;
   const subject = guessedSubject || settings.subjects[0] || '数学';
-  const topics = KNOWLEDGE_MAP[subject] || [];
   const html = `
     <div class="form-stack record-save-form">
       ${saveImageSnapshot ? `<details class="source-image" open><summary>对照原图</summary><img class="detail-img" src="${imageHtml(saveImageSnapshot)}" alt="原始题目"></details>` : ''}
-      ${imageOnly ? '<div><label class="field-label" for="formText">题号或备注（选填）</label><input id="formText" maxlength="160" placeholder="例如：第 3 题 / 数列求和"></div>' : lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
-      <div>
-        <label class="field-label">科目</label>
-        <select id="formSubject" onchange="fillTopicSelect(this.value)">
-          ${SUBJECTS.map(s => `<option value="${s}" ${s === subject ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <details class="optional-fields"><summary>补充知识点、错因和答案（选填）</summary>
-      <div>
-        <label class="field-label">知识点</label>
-        <select id="formTopic">
-          <option value="">选择知识点</option>
-          ${topics.map(t => `<option value="${t}">${t}</option>`).join('')}
-        </select>
-      </div>
+      ${classificationFields(subject, '', capturedPageImage && capturedPageImage === sourcePageImage ? sourcePageName : '')}
+      ${imageOnly ? '<div><label class="field-label" for="formText">备注（选填）</label><input id="formText" maxlength="160" placeholder="例如：最后一步计算出错"></div>' : lastOcrRaw ? ocrReviewEditor(text) : `<div><label class="field-label" for="formText">题目内容</label><textarea id="formText" rows="6">${escapeHtml(text)}</textarea></div>`}
+      <details class="optional-fields"><summary>补充错因和答案（选填）</summary>
       <div>
         <label class="field-label">错因</label>
         <select id="formCause">
@@ -1444,6 +1443,8 @@ async function submitSaveForm(continuePage = false) {
   const text = document.getElementById('formText').value.trim() || (!editingId && saveImageSnapshot ? '图片错题' : '');
   const subject = document.getElementById('formSubject').value;
   const topic = document.getElementById('formTopic').value;
+  const paperName = document.getElementById('formPaperName').value.trim().slice(0, 120);
+  const questionNo = document.getElementById('formQuestionNo').value.trim().slice(0, 30);
   const cause = document.getElementById('formCause').value || '';
   const answer = document.getElementById('formAnswer').value.trim();
   const ocrConfirmation = document.getElementById('ocrTextConfirmed');
@@ -1459,16 +1460,17 @@ async function submitSaveForm(continuePage = false) {
   const now = new Date().toISOString();
   if (editingId) {
     await storeUpdate(editingId, {
-      text, subject, topic: topic || '未分类', cause, answer,
+      text, subject, topic: topic || '未分类', paperName, questionNo, cause, answer,
       updatedAt: now
     });
     const target = allErrors.find(e => e.id === editingId);
-    if (target) Object.assign(target, { text, subject, topic: topic || '未分类', cause, answer, updatedAt: now });
+    if (target) Object.assign(target, { text, subject, topic: topic || '未分类', paperName, questionNo, cause, answer, updatedAt: now });
     showToast('已更新');
   } else {
     const item = {
       subject,
       topic: topic || '未分类',
+      paperName, questionNo,
       cause,
       text,
       answer,
@@ -1484,6 +1486,7 @@ async function submitSaveForm(continuePage = false) {
       updatedAt: now
     };
     await storeAdd(item);
+    sourcePageImage = pageBeforeSave; sourcePageName = paperName;
     await loadErrors();
     capturedImage = null;
     retakeCapture();
@@ -1513,30 +1516,17 @@ function openEditModal(id) {
   const e = findError(id);
   if (!e) return;
   editingId = id;
-  const topics = KNOWLEDGE_MAP[e.subject] || [];
   const html = `
-    <div class="form-stack">
+    <div class="form-stack record-save-form">
+      ${classificationFields(e.subject, e.topic, e.paperName || '', e.questionNo || '')}
       <div>
         <label class="field-label">题目内容</label>
         <textarea id="formText" rows="6">${escapeHtml(e.text)}</textarea>
       </div>
       <div>
-        <label class="field-label">科目</label>
-        <select id="formSubject" onchange="fillTopicSelect(this.value)">
-          ${SUBJECTS.map(s => `<option value="${s}" ${s === e.subject ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <label class="field-label">知识点</label>
-        <select id="formTopic">
-          <option value="">选择知识点</option>
-          ${topics.map(t => `<option value="${t}" ${t === e.topic ? 'selected' : ''}>${t}</option>`).join('')}
-        </select>
-      </div>
-      <div>
         <label class="field-label">错因</label>
         <select id="formCause">
-          ${CAUSES.map(c => `<option value="${c}" ${c === (e.cause || '概念不清') ? 'selected' : ''}>${c}</option>`).join('')}
+          <option value="">稍后再标注</option>${CAUSES.map(c => `<option value="${c}" ${c === e.cause ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -1592,11 +1582,13 @@ function setDateFilter(value) {
 function getFilteredErrors() {
   const now = Date.now();
   return allErrors.filter(e => {
+    if (paperFilter && (e.paperName || '') !== paperFilter) return false;
+    if (topicFilter && e.topic !== topicFilter) return false;
     if (subjectFilter !== 'all' && e.subject !== subjectFilter) return false;
     if (statusFilter === 'pending' && e.status === 'mastered') return false;
     if (statusFilter === 'mastered' && e.status !== 'mastered') return false;
     if (searchQuery) {
-      const hay = (e.text + ' ' + (e.topic || '') + ' ' + (e.answer || '') + ' ' + e.subject).toLowerCase();
+      const hay = [e.text, e.topic, e.answer, e.subject, e.paperName, e.questionNo].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(searchQuery)) return false;
     }
     if (dateFilter !== 'all') {
@@ -1613,11 +1605,22 @@ function getFilteredErrors() {
 
 function questionTitle(item) {
   const text = (item.text || '').trim();
-  return !text || ['图片错题', '待补充题目文字'].includes(text) ? `${item.subject || '错题'} · 题目 ${item.id}` : shortText(text, 36);
+  return !text || ['图片错题', '待补充题目文字'].includes(text) ? `${item.paperName || item.subject || '错题'} · ${item.questionNo ? '题号 ' + item.questionNo : '题目 ' + item.id}` : shortText(text, 36);
+}
+
+function renderClassificationFilters() {
+  for (const [id, key, label, selected] of [['paperFilter','paperName','全部试卷',paperFilter],['topicFilter','topic','全部知识点',topicFilter]]) {
+    const select = document.getElementById(id);
+    const values = [...new Set(allErrors.map(e => e[key]).filter(x => x && x !== '未分类'))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+    select.replaceChildren(new Option(label, ''), ...values.map(x => new Option(x,x)));
+    select.value = values.includes(selected) ? selected : '';
+    if (id === 'paperFilter') paperFilter = select.value; else topicFilter = select.value;
+  }
 }
 
 function resetBookFilters() {
   subjectFilter = 'all'; statusFilter = 'all'; dateFilter = 'all'; searchQuery = '';
+  paperFilter = ''; topicFilter = '';
   document.getElementById('searchInput').value = '';
   document.getElementById('dateFilter').value = 'all';
   renderSubjectChips(); renderStatusSeg(); renderErrorList();
@@ -1681,6 +1684,7 @@ async function applySavedQuestionText() {
 }
 
 function renderErrorList() {
+  renderClassificationFilters();
   const container = document.getElementById('errorList');
   const filtered = getFilteredErrors();
   if (filtered.length === 0) {
@@ -1709,6 +1713,7 @@ function renderErrorList() {
           </span>
         </div>
         ${e.image ? `<img class="question-thumb" src="${imageHtml(e.image)}" alt="${escapeHtml(questionTitle(e))}" loading="lazy">` : `<div class="ec-preview">${escapeHtml(e.text)}</div>`}
+        ${e.paperName || e.questionNo ? `<div class="question-source">${escapeHtml(e.paperName || '未填试卷')}${e.questionNo ? ' · 题号 ' + escapeHtml(e.questionNo) : ''}</div>` : ''}
         <div class="ec-tags">${statusTag}${e.topic && e.topic !== '未分类' ? `<span class="tag">${escapeHtml(e.topic)}</span>` : ''}${e.cause ? causeTag : ''}${aiTag}</div>
       </div>
     `;
@@ -1840,6 +1845,7 @@ function openDetail(id) {
         </div>
       </div>
     </div>
+    <div class="detail-classification"><p>${escapeHtml(e.paperName || '尚未填写试卷来源')}${e.questionNo ? ' · 题号 ' + escapeHtml(e.questionNo) : ''}</p><button class="text-btn" onclick="openEditModal(${e.id})">修改分类 / 试卷来源</button></div>
     ${e.image ? `<div class="modal-content-block"><img class="detail-img" src="${imageHtml(e.image)}" alt="错题图片"></div>` : ''}
     ${e.image ? `<details class="saved-text-tools"><summary>提取图片文字（选用）</summary><p class="field-help">原图已经保存。印刷体可离线识别；手写和公式可尝试自配视觉模型，结果需要核对。</p><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},false)">离线提取文字</button><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},true)">${canUseAi() ? 'AI 识图（联网）' : '配置 AI 识图'}</button></details>` : ''}
     <div class="modal-content-block">

@@ -1,0 +1,9 @@
+HTTP_SERVER_READY {"pid":89504,"port":61950}
+RECOVERY: real d7c0961 cached shell -> update.html -> organize-v1; identical records, image and key; independent OCR cache marker retained
+PASS Old cache recovery preserves records, key and OCR cache
+COMMAND: taskkill.exe /PID 89504 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 89504 (child process of PID 88496) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+CLASSIFICATION: visible subject/topic/paper/question; same-page paper reused, question cleared; edit/search/filter/reload/backup preserve fields; unsaved AI settings block update
+PASS Visible classification and paper source save, edit, filter and backup

@@ -2,7 +2,7 @@
 importScripts('./ocr-assets.js');
 const SCOPE = new URL(self.registration.scope).pathname;
 const PREFIX = 'tf-shell:' + SCOPE + ':';
-const CACHE_NAME = PREFIX + 'ai-picker-v1';
+const CACHE_NAME = PREFIX + 'organize-v1';
 const OCR_CACHE = 'tf-ocr:' + SCOPE + ':' + OCR_PACK.version;
 const APP_SHELL = ['./', './index.html', './app.html', './styles.css', './js/app.js',
   './js/reliability.js', './js/ai-client.js', './js/ocr-review.js', './js/offline.js', './js/album-enhance.js', './js/crop-enhance.js',
@@ -62,6 +62,7 @@ self.addEventListener('activate', event => {
 });
 let ocrPreparation = null;
 self.addEventListener('message', event => {
+  if (event.data?.type === 'GET_VERSION') event.ports[0]?.postMessage({ version: 'organize-v1' });
   if (event.data?.type === 'APPLY_UPDATE') event.waitUntil(self.skipWaiting());
   if (event.data?.type === 'PREPARE_OCR') {
     if (!ocrPreparation) ocrPreparation = prepareOcr().finally(() => { ocrPreparation = null; });
@@ -82,6 +83,11 @@ self.addEventListener('fetch', event => {
       return new Response('OCR pack not installed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
     }
     const shell = await caches.open(CACHE_NAME);
+    // Recovery page must always come from the network, never an old shell fallback.
+    if (url.pathname === new URL('./update.html', self.registration.scope).pathname) {
+      try { return await fetch(request, { cache: 'no-store' }); }
+      catch (_) { return new Response('Please reconnect to update. Your saved questions remain on this device.', {status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}}); }
+    }
     const cached = await shell.match(request, { ignoreSearch: true });
     if (cached) return cached;
     try {

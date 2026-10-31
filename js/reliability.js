@@ -93,10 +93,10 @@ function normalizeRecords(items) {
     if (!item || typeof item !== 'object' || typeof item.text !== 'string' || !item.text.trim()) {
       throw new Error(`第 ${index + 1} 条题目内容无效，未导入任何数据`);
     }
-    const record = { text: item.text, subject: '数学', topic: '未分类', cause: '', answer: '', image: '',
+    const record = { text: item.text, subject: '数学', topic: '未分类', paperName: '', questionNo: '', cause: '', answer: '', image: '',
       status: 'new', reviewCount: 0, analysis: null, createdAt: '1970-01-01T00:00:00.000Z', updatedAt: null,
       nextReviewAt: null, lastReviewedAt: null };
-    for (const key of ['text', 'subject', 'topic', 'cause', 'answer', 'source', 'lastAttempt', 'ocrRaw']) {
+    for (const key of ['text', 'subject', 'topic', 'paperName', 'questionNo', 'cause', 'answer', 'source', 'lastAttempt', 'ocrRaw']) {
       if (item[key] != null && typeof item[key] !== 'string') throw new Error(`第 ${index + 1} 条 ${key} 类型错误`);
       if (typeof item[key] === 'string') record[key] = item[key];
     }
@@ -107,6 +107,7 @@ function normalizeRecords(items) {
       }
     }
     record.updatedAt ||= record.createdAt;
+    if (record.paperName.length > 120 || record.questionNo.length > 30) throw new Error('试卷名称或题号过长，未导入任何数据');
     if (item.id != null) {
       if (!Number.isSafeInteger(item.id) || item.id <= 0 || ids.has(item.id)) throw new Error('错题 ID 无效或重复');
       ids.add(item.id); record.id = item.id;

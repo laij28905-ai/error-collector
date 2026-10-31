@@ -19,6 +19,11 @@ for(const [input,expected] of samples) assert.equal(run(`normalizeOcrText(${JSON
 assert.throws(()=>run('normalizeSettings({subjects:"数学"}, true)'),/subjects/);
 assert.deepEqual(run('normalizeSettings({subjects:"数学"}).subjects'),['数学','物理','化学','生物','英语']);
 assert.throws(()=>run('normalizeRecords([{text:5}])'),/无效/);
+assert.throws(()=>run('normalizeRecords([{text:"题目",paperName:5}])'),/paperName/);
+assert.throws(()=>run('normalizeRecords([{text:"题目",questionNo:[]}])'),/questionNo/);
+assert.throws(()=>run('normalizeRecords([{text:"题目",paperName:"x".repeat(121)}])'),/过长/);
+assert.equal(run('normalizeRecords([{text:"旧记录"}])[0].paperName'),'');
+assert.equal(run('mergeRecords([] ,normalizeRecords([{text:"原题",paperName:"九月调考",questionNo:"16（2）"}]))[0].questionNo'),'16（2）');
 assert.throws(()=>run('normalizeRecords([{id:"1);alert(1)",text:"题目"}])'),/ID/);
 assert.throws(()=>run('normalizeRecords([{text:"题目",image:"javascript:alert(1)"}])'),/图片/);
 assert.equal(run('safeImageUrl("data:image/svg+xml;base64,PHN2Zz4=")'),'');

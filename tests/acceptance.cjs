@@ -3,11 +3,12 @@
  */
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const {fork,spawnSync}=require('node:child_process');
+const {fork,spawnSync,execFileSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..'), output=path.join(root,'test-results');
 fs.mkdirSync(output,{recursive:true});
 const results=[], errors=[];
 let revision=false,apiMode='success',lastAiRequest=null,browser,server,serverChild,serverPort;
+let legacyMode=process.argv.includes('--legacy');
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.json':'application/json','.wasm':'application/wasm','.gz':'application/gzip','.png':'image/png'};
 server=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://localhost');
@@ -31,11 +32,12 @@ server=http.createServer((req,res)=>{
   if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');return;}
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replace('ai-picker-v1','acceptance-v7'));return;}
+  if(legacyMode && name!=='/update.html' && !name.startsWith('/vendor/tesseract/')) {try{res.end(execFileSync('git',['show','d7c0961:'+name.slice(1)],{cwd:root,stdio:['ignore','pipe','ignore']}));return;}catch(_){}}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replaceAll('organize-v1','acceptance-v8'));return;}
   fs.createReadStream(file).pipe(res);
 });
-async function startServer(port=0) {
-  serverChild=fork(__filename,['--serve',String(port)],{cwd:root,stdio:['ignore','inherit','inherit','ipc']});
+async function startServer(port=0,legacy=false) {
+  serverChild=fork(__filename,['--serve',String(port),...(legacy?['--legacy']:[])],{cwd:root,stdio:['ignore','inherit','inherit','ipc']});
   const ready=await new Promise((resolve,reject)=>{serverChild.once('message',resolve);serverChild.once('error',reject)});
   serverPort=ready.port;
   console.log('HTTP_SERVER_READY',JSON.stringify(ready));
@@ -61,7 +63,7 @@ const open=async()=>{
   context=await chromium.launchPersistentContext(profile,{...launch,viewport:{width:1360,height:960},hasTouch:true});
   page=await context.newPage();
   page.on('pageerror',e=>errors.push(e.message));
-  page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+  page.on('console',m=>{if(m.type()==='error')errors.push(m.text()+' '+(m.location().url||''))});
 };
 const readState=()=>page.evaluate(()=>JSON.stringify(allErrors));
 const inputFile=(id,data)=>page.locator(id).setInputFiles({name:'test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
@@ -83,10 +85,60 @@ async function recognize(file){
 }
 if(process.argv.includes('--serve')) {
   server.listen(Number(process.argv[3])||0,'127.0.0.1',()=>process.send({pid:process.pid,port:server.address().port}));
-  process.on('message',message=>{if('revision' in message)revision=message.revision;if('apiMode' in message)apiMode=message.apiMode});
+  process.on('message',message=>{if('revision' in message)revision=message.revision;if('apiMode' in message)apiMode=message.apiMode;if('legacyMode' in message){legacyMode=message.legacyMode;process.send({legacyChanged:true})}});
 } else (async()=>{
-  await startServer();base='http://127.0.0.1:'+serverPort;
+  await startServer(0,process.argv.includes('--organize-only'));base='http://127.0.0.1:'+serverPort;
   await open();
+  if(process.argv.includes('--organize-only')) {
+    page.on('response',response=>{if(response.status()>=400)console.log('HTTP_ERROR',response.status(),response.url())});
+    await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await page.setViewportSize({width:375,height:812});
+    assert.equal(await page.locator('#aiModelChoice').count(),0);
+    plain=await fixture(['武汉九月调考 · 数学','第 3 题：已知等比数列，求前九项和。'],'organize-fixture.png');
+    await page.evaluate(async image=>{await storeAdd({text:'旧版保留的题',subject:'数学',image,createdAt:new Date().toISOString()});await loadErrors();settings.aiEndpoint='https://api.deepseek.com';settings.aiModel='deepseek-flash';settings.aiKey='local-mock-key';persistSettings();const cache=await caches.open('tf-ocr:/:'+OCR_PACK.version);await cache.put('/upgrade-test-marker',new Response('keep'));},'data:image/png;base64,'+fs.readFileSync(plain).toString('base64'));
+    const before=await readState();
+    await new Promise(resolve=>{serverChild.once('message',resolve);serverChild.send({legacyMode:false})});
+    await test('Old cache recovery preserves records, key and OCR cache',async()=>{
+      await page.goto(base+'/update.html');
+      await page.getByRole('button',{name:'更新应用，保留错题'}).click();
+      await page.waitForURL('**/app.html?release=organize-v1#profile',{timeout:60000});
+      await page.waitForFunction(()=>allErrors.length===1);
+      assert.equal(await readState(),before);
+      assert(await page.evaluate(()=>settings.aiKey==='local-mock-key'));
+      assert(await page.evaluate(async()=>!!await(await caches.open('tf-ocr:/:'+OCR_PACK.version)).match('/upgrade-test-marker')));
+      await page.evaluate(()=>{document.getElementById('aiSettings').open=true;document.getElementById('aiKey').value='';});
+      assert.equal(await page.locator('#aiModelChoice').inputValue(),'deepseek-flash');
+      await page.locator('#aiProvider').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'recovered-picker-375x812.png'),animations:'disabled'});
+      await page.evaluate(()=>fillSettingsForm());
+      console.log('RECOVERY: real d7c0961 cached shell -> update.html -> organize-v1; identical records, image and key; independent OCR cache marker retained');
+    });
+    killServer();await verifyServerStopped();
+    await test('Visible classification and paper source save, edit, filter and backup',async()=>{
+      await page.evaluate(()=>{navigateTo('capture');retakeCapture()});await page.locator('#fileInput').setInputFiles(plain);await page.waitForFunction(()=>!!capturedImage);
+      await page.getByRole('button',{name:'保存这张图',exact:true}).click();
+      assert(await page.locator('#formTopic').isVisible());
+      await page.selectOption('#formTopic','数列');await page.locator('#formPaperName').fill('武汉九月调考');await page.locator('#formQuestionNo').fill('3');
+      await page.locator('#formPaperName').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'classification-save-375x812.png'),animations:'disabled'});
+      await page.getByRole('button',{name:'保存错题',exact:true}).click();await page.waitForFunction(()=>!saveBusy && allErrors.length===2);
+      const id=await page.evaluate(()=>allErrors.find(e=>e.paperName==='武汉九月调考').id);
+      await page.getByRole('button',{name:'继续选下一题',exact:true}).click();
+      await page.evaluate(()=>{closeModal();openImageOnly()});
+      assert.equal(await page.locator('#formPaperName').inputValue(),'武汉九月调考');assert.equal(await page.locator('#formQuestionNo').inputValue(),'');
+      await page.evaluate(()=>{closeModal();retakeCapture();navigateTo('book');resetBookFilters()});
+      await page.selectOption('#paperFilter','武汉九月调考');await page.selectOption('#topicFilter','数列');assert.equal(await page.locator('.error-card').count(),1);
+      await page.locator('.error-card').click();await page.getByRole('button',{name:'修改分类 / 试卷来源'}).click();
+      assert.equal(await page.locator('#formPaperName').inputValue(),'武汉九月调考');
+      await page.locator('#formQuestionNo').fill('16（2）');await page.getByRole('button',{name:'保存修改'}).click();await page.waitForFunction(()=>!saveBusy);
+      await page.reload();await page.waitForFunction(()=>allErrors.length===2);await page.evaluate(()=>{navigateTo('book');resetBookFilters()});
+      await page.locator('#searchInput').fill('16（2）');assert.equal(await page.locator('.error-card').count(),1);
+      await page.screenshot({path:path.join(output,'classification-book-375x812.png'),animations:'disabled'});
+      assert.deepEqual(await page.evaluate(id=>{const item=normalizeRecords(JSON.parse(JSON.stringify(allErrors))).find(e=>e.id===id);return[item.paperName,item.questionNo,item.topic]},id),['武汉九月调考','16（2）','数列']);
+      await page.evaluate(()=>{document.getElementById('aiKey').value+='-unsaved'});assert(await page.evaluate(()=>!!hasUnsavedUpdateWork()));await page.evaluate(()=>fillSettingsForm());assert.equal(await page.evaluate(()=>!!hasUnsavedUpdateWork()),false);
+      console.log('CLASSIFICATION: visible subject/topic/paper/question; same-page paper reused, question cleared; edit/search/filter/reload/backup preserve fields; unsaved AI settings block update');
+    });
+    fs.writeFileSync(path.join(output,'organize-acceptance.json'),JSON.stringify({date:new Date().toISOString(),results,consoleErrors:errors},null,2));
+    assert.deepEqual(errors,[]);return;
+  }
   if(process.argv.includes('--ai-only')) {
     await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
     await page.setViewportSize({width:375,height:812});

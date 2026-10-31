@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-31T01:41:36.195Z",
+  "results": [
+    {
+      "name": "Old cache recovery preserves records, key and OCR cache",
+      "status": "passed"
+    },
+    {
+      "name": "Visible classification and paper source save, edit, filter and backup",
+      "status": "passed"
+    }
+  ],
+  "consoleErrors": []
+}

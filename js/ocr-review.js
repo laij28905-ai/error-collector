@@ -21,12 +21,16 @@ function keepOcrImageOnly() {
   const topic = document.getElementById('formTopic')?.value;
   const cause = document.getElementById('formCause')?.value;
   const answer = document.getElementById('formAnswer')?.value;
+  const paperName = document.getElementById('formPaperName')?.value;
+  const questionNo = document.getElementById('formQuestionNo')?.value;
   capturedImage = saveImageSnapshot;
   lastOcrRaw = ''; ocrCandidate = ''; ocrRoiCount = 0; ocrQuality = null;
   openSaveModal('', subject, true);
   if (topic) document.getElementById('formTopic').value = topic;
   if (cause) document.getElementById('formCause').value = cause;
   if (answer) document.getElementById('formAnswer').value = answer;
+  if (paperName) document.getElementById('formPaperName').value = paperName;
+  if (questionNo) document.getElementById('formQuestionNo').value = questionNo;
   showToast('已移除识别文字，原图保留；可直接保存');
 }
 function isMathLine(text) {
