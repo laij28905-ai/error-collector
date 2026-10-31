@@ -59,10 +59,14 @@
       </div>
       <div class="stats-grid compact-stats"><div class="stat-card"><b id="statTotal">0</b><span>已记录</span></div><div class="stat-card"><b id="statMastered">0</b><span>已掌握</span></div><button class="stat-report" onclick="showParentReport()"><span>本周学习记录</span><span aria-hidden="true">↗</span></button></div>
       <div class="section-block home-recent"><div class="section-title"><span>最近记下的题</span><button class="text-btn" onclick="navigateTo('book')">全部错题 →</button></div><div id="recentList" class="recent-list"></div></div>
+      <div class="section-block"><div class="section-title"><span>举一反三记录</span><button class="text-btn" onclick="openPracticeHistory()">查看全部 →</button></div><div id="homePractice"></div></div>
       <div class="section-block home-insights"><div class="section-title"><span>值得再看一遍</span><button class="text-btn" onclick="openWeeklyReport()">周报</button></div><div id="weakList" class="weak-list"></div>
         <details class="more-tools"><summary>更多学习工具</summary><div class="quick-grid"><button class="quick-card" onclick="openMasteryTrend()">掌握趋势</button><button class="quick-card" onclick="openStudyPlan()">学习计划</button><button class="quick-card" onclick="openWeeklyPlan()">周计划</button><button class="quick-card" onclick="openAiSettings()">AI 设置</button><button class="quick-card" onclick="openSubjectBoard()">学情看板</button></div></details>
       </div>
     </section>
+
+    <section id="page-practice" class="page"><div id="practiceContent"></div></section>
+    <section id="page-practice-history" class="page"><div class="page-intro"><h2>做过的练习</h2><p>保留题目、作答照片和每次反馈。</p></div><div id="practiceHistoryList"></div></section>
 
     <!-- 拍照录入 -->
     <section id="page-capture" class="page">
@@ -169,7 +173,7 @@
         </div>
       </div>
 
-      <div class="app-version">当前版本 · 10.31 分类与来源 <button class="text-btn" onclick="openUpdatePage()">检查更新</button></div>
+      <div class="app-version">当前版本 · 10.31 举一反三作答 <button class="text-btn" onclick="openUpdatePage()">检查更新</button></div>
       <button class="btn outline full backup-entry" onclick="exportFullBackup()">备份全部错题</button>
       <p class="field-help">错题保存在当前浏览器，换设备前记得备份。</p>
 
@@ -339,6 +343,7 @@
 <script src="js/ai-client.js"></script>
 <script src="js/ocr-review.js"></script>
 <script src="js/app.js"></script>
+<script src="js/practice.js"></script>
 <script src="js/offline.js"></script>
 <script src="js/album-enhance.js"></script>
 <script src="js/crop-enhance.js"></script>

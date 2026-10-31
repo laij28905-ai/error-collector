@@ -1,5 +1,7 @@
 # 轻量化AI高中错题个性化学习助手
 
+**2026-10-31 举一反三作答版**：题卡优先显示试卷名称与题号，备注单独显示。举一反三进入独立作答页，支持文字和作答照片，先在本地保存再调用自配视觉模型分析；首页可查看历史作答，返回原题恢复滚动位置。请从 [更新入口](https://laij28905-ai.github.io/error-collector/update.html) 升级。浏览器实测与尚未验证的手写识读边界见 [evidence/practice/README.md](evidence/practice/README.md)。
+
 **2026-10-31 分类与来源版**：保存/编辑页直接填写学科、知识点、试卷名称和原卷题号，错题本支持试卷及知识点筛选。若仍显示旧 AI 输入框，请联网打开同站点的 [更新入口](https://laij28905-ai.github.io/error-collector/update.html)，点击“更新应用，保留错题”；不要清除浏览器数据。证据与边界见 [evidence/organize/README.md](evidence/organize/README.md)。
 
 **2026-10-30 图片优先收口版**：主流程为选图/拍照 → 框选 → 保存。题号备注选填；保存后可从同页继续选题，错题本用缩略图展示。应用页面安装与 61 MB OCR 包已解耦：首次联网准备页面后即可断网保存图片，只有主动点击“下载识别包”才准备文字识别资源。OCR 和自配 AI 位于已保存题目的详情，不影响原图记录。当前证据与限制见 [evidence/photo-first/README.md](evidence/photo-first/README.md)，下方旧记录以该版本说明为准。

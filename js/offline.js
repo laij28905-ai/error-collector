@@ -78,7 +78,7 @@ async function prepareOffline() {
 
 function showUpdate() { document.getElementById('updateNotice').classList.remove('hidden'); }
 function hasUnsavedUpdateWork() {
-  return processingBusy || saveBusy || ocrBusy || cameraStream || document.getElementById('modalOverlay').classList.contains('show') || capturedImage || document.getElementById('manualText').value.trim() ||
+  return practiceBusy || hasPracticeDraft() || processingBusy || saveBusy || ocrBusy || cameraStream || document.getElementById('modalOverlay').classList.contains('show') || capturedImage || document.getElementById('manualText').value.trim() ||
     ['aiEndpoint','aiModel','aiKey'].some(id => document.getElementById(id).value.trim() !== String(settings[id] || '').trim());
 }
 function openUpdatePage() {

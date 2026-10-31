@@ -86,6 +86,41 @@ function normalizeSettings(input, strict = false) {
   return result;
 }
 
+function normalizePracticeAttempts(items) {
+  if (!Array.isArray(items) || items.length > 200) throw new Error('每道原题最多保留 200 次练习记录，请先备份整理');
+  const ids = new Set();
+  return items.map(item => {
+    if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(item.id) || ids.has(item.id)) throw new Error('练习记录 ID 无效或重复');
+    ids.add(item.id);
+    const record = {id:item.id};
+    for (const [key,max] of [['questionKey',22000],['question',20000],['answerText',10000],['error',2000]]) {
+      if (item[key] != null && (typeof item[key] !== 'string' || item[key].length > max)) throw new Error('练习记录 '+key+' 无效');
+      record[key] = item[key] || '';
+    }
+    if (!record.question.trim() || !record.questionKey) throw new Error('练习题内容缺失');
+    record.answerImage = item.answerImage || '';
+    if (record.answerImage && (!safeImageUrl(record.answerImage) || record.answerImage.length > 1600000)) throw new Error('练习照片无效或过大');
+    if (!record.answerText.trim() && !record.answerImage) throw new Error('练习作答为空');
+    for (const key of ['createdAt','updatedAt']) {
+      if (typeof item[key] !== 'string' || !Number.isFinite(Date.parse(item[key]))) throw new Error('练习日期无效');
+      record[key]=new Date(item[key]).toISOString();
+    }
+    record.originSource=item.originSource==='ai'?'ai':'template';
+    record.status=['saved','ai','error'].includes(item.status)?item.status:'saved';
+    record.feedback=null;
+    if (item.feedback != null) {
+      if (typeof item.feedback !== 'object' || Array.isArray(item.feedback)) throw new Error('练习反馈格式无效');
+      record.feedback={};
+      for (const key of ['recognizedAnswer','analysis','referenceAnswer']) {
+        if (typeof item.feedback[key] !== 'string' || item.feedback[key].length>12000) throw new Error('练习反馈字段无效');
+        record.feedback[key]=item.feedback[key];
+      }
+      record.feedback.verdict=['correct','partial','incorrect','uncertain'].includes(item.feedback.verdict)?item.feedback.verdict:'uncertain';
+    }
+    return record;
+  });
+}
+
 function normalizeRecords(items) {
   if (!Array.isArray(items) || items.length > 10000) throw new Error('错题须为数组，最多 10000 条');
   const ids = new Set();
@@ -96,7 +131,7 @@ function normalizeRecords(items) {
     const record = { text: item.text, subject: '数学', topic: '未分类', paperName: '', questionNo: '', cause: '', answer: '', image: '',
       status: 'new', reviewCount: 0, analysis: null, createdAt: '1970-01-01T00:00:00.000Z', updatedAt: null,
       nextReviewAt: null, lastReviewedAt: null };
-    for (const key of ['text', 'subject', 'topic', 'paperName', 'questionNo', 'cause', 'answer', 'source', 'lastAttempt', 'ocrRaw']) {
+    for (const key of ['text', 'subject', 'topic', 'paperName', 'questionNo', 'note', 'cause', 'answer', 'source', 'lastAttempt', 'ocrRaw']) {
       if (item[key] != null && typeof item[key] !== 'string') throw new Error(`第 ${index + 1} 条 ${key} 类型错误`);
       if (typeof item[key] === 'string') record[key] = item[key];
     }
@@ -108,6 +143,8 @@ function normalizeRecords(items) {
     }
     record.updatedAt ||= record.createdAt;
     if (record.paperName.length > 120 || record.questionNo.length > 30) throw new Error('试卷名称或题号过长，未导入任何数据');
+    if (record.note && record.note.length > 300) throw new Error('备注过长，未导入任何数据');
+    if (item.practiceAttempts != null) record.practiceAttempts=normalizePracticeAttempts(item.practiceAttempts);
     if (item.id != null) {
       if (!Number.isSafeInteger(item.id) || item.id <= 0 || ids.has(item.id)) throw new Error('错题 ID 无效或重复');
       ids.add(item.id); record.id = item.id;

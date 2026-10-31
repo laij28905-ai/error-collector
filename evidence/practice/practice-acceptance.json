@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-31T09:42:08.290Z",
+  "results": [
+    {
+      "name": "Source title and independent practice restore detail scroll",
+      "status": "passed"
+    },
+    {
+      "name": "Photo submission persists before AI, retries and history preserve snapshots",
+      "status": "passed"
+    }
+  ],
+  "notes": "Mock vision grading only; stopped-server persistence and cold restart verified. Physical handwriting accuracy and camera not tested."
+}

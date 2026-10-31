@@ -21,7 +21,7 @@ server=http.createServer((req,res)=>{
     if(apiMode==='bad-model'){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:{message:'Model Not Exist'}}));return;}
     res.setHeader('Content-Type','application/json');
     const prompt=JSON.stringify(lastAiRequest.messages);
-    const content=prompt.includes('四位数字')?(apiMode==='vision-pass'?'1234':'无法读取'):prompt.includes('只返回题目文字')?'已知函数 f(x)=x²，求 f(2)。':JSON.stringify({analysis:'检查配方法中的常数项。',solution:'f(x)=(x−1)²，最小值为 0。',similar:['求 g(x)=x²−4x+5 的最小值。'],advice:'明天再做一次。'});
+    const content=prompt.includes('举一反三作答分析任务')?JSON.stringify({recognizedAnswer:'学生作答示例：最小值为 1',analysis:'已使用配方法，请核对常数项。',referenceAnswer:'g(x)=(x−2)²+1，最小值为 1。',verdict:apiMode==='unclear'?'uncertain':'correct'}):prompt.includes('四位数字')?(apiMode==='vision-pass'?'1234':'无法读取'):prompt.includes('只返回题目文字')?'已知函数 f(x)=x²，求 f(2)。':JSON.stringify({analysis:'检查配方法中的常数项。',solution:'f(x)=(x−1)²，最小值为 0。',similar:['求 g(x)=x²−4x+5 的最小值。'],advice:'明天再做一次。'});
     res.end(JSON.stringify({choices:[{message:{content}}]}));});return;
   }
   if(url.pathname==='/slow-body'){res.writeHead(200,{'Content-Type':'application/json'});res.write('{');return;}
@@ -33,7 +33,7 @@ server=http.createServer((req,res)=>{
   res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');
   res.setHeader('Cache-Control','no-cache');
   if(legacyMode && name!=='/update.html' && !name.startsWith('/vendor/tesseract/')) {try{res.end(execFileSync('git',['show','d7c0961:'+name.slice(1)],{cwd:root,stdio:['ignore','pipe','ignore']}));return;}catch(_){}}
-  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replaceAll('organize-v1','acceptance-v8'));return;}
+  if(name==='/sw.js'&&revision){res.end(fs.readFileSync(file,'utf8').replaceAll('practice-v1','acceptance-v9'));return;}
   fs.createReadStream(file).pipe(res);
 });
 async function startServer(port=0,legacy=false) {
@@ -89,6 +89,58 @@ if(process.argv.includes('--serve')) {
 } else (async()=>{
   await startServer(0,process.argv.includes('--organize-only'));base='http://127.0.0.1:'+serverPort;
   await open();
+  if(process.argv.includes('--practice-only')) {
+    await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await page.setViewportSize({width:375,height:812});
+    plain=await fixture(['学生作答照片夹具','g(x) = (x - 2)² + 1','最小值为 1'],'practice-answer-fixture.png');
+    const photo='data:image/png;base64,'+fs.readFileSync(plain).toString('base64');
+    await page.evaluate(async ({photo,endpoint})=>{await storeAdd({text:'没看清题目',paperName:'周测1',questionNo:'1',subject:'数学',topic:'函数与导数',image:photo,createdAt:new Date().toISOString(),analysis:{source:'ai',generatedAt:new Date().toISOString(),analysis:'较长的原题分析。'.repeat(80),solution:'原题解法。'.repeat(80),similar:['求 g(x)=x²−4x+5 的最小值。','求 h(x)=x²−6x+10 的最小值。'],advice:'复习配方法'}});await loadErrors();settings.aiEndpoint=endpoint;settings.aiKey='';settings.aiModel='mock-vision';persistSettings();fillSettingsForm();navigateTo('book');}, {photo,endpoint:base+'/mock-ai'});
+    await test('Source title and independent practice restore detail scroll',async()=>{
+      assert.equal(await page.locator('.ec-topic').textContent(),'周测1 · 第 1 题');assert((await page.locator('.question-note').textContent()).includes('没看清题目'));assert.equal(await page.locator('.question-source').count(),0);
+      await page.screenshot({path:path.join(output,'practice-title-375x812.png'),animations:'disabled'});
+      await page.locator('.error-card').click();await page.locator('.similar-item').first().scrollIntoViewIfNeeded();
+      const scroll=await page.locator('.modal-sheet').evaluate(el=>el.scrollTop);assert(scroll>100);
+      await page.locator('.similar-item').first().click();assert.equal(await page.evaluate(()=>currentPage),'practice');
+      assert.equal(await page.evaluate(()=>allErrors[0].analysis.similarDone?.length||0),0);
+      await page.locator('#practiceAnswer').fill('第一次草稿');await page.getByRole('button',{name:'← 返回原题',exact:true}).click();
+      await page.waitForTimeout(80);assert(Math.abs((await page.locator('.modal-sheet').evaluate(el=>el.scrollTop))-scroll)<8);
+      await page.locator('.similar-item').first().click();assert.equal(await page.locator('#practiceAnswer').inputValue(),'第一次草稿');
+      console.log('PRACTICE_NAV: source title wins; note separate; opening does not mark done; back restores scroll; unsaved draft retained');
+    });
+    await test('Photo submission persists before AI, retries and history preserve snapshots',async()=>{
+      await page.locator('#practiceAnswer').fill('配方后最小值为 1');await page.locator('#practiceAlbum').setInputFiles(plain);await page.waitForFunction(()=>!practiceBusy && !!practiceSession.answerImage);
+      await page.screenshot({path:path.join(output,'practice-answer-375x812.png'),animations:'disabled'});
+      await page.evaluate(()=>{window.__practiceStore=storeUpdate;storeUpdate=async()=>{throw Error('模拟配额失败')};});
+      await page.getByRole('button',{name:'提交 AI 分析',exact:true}).click();await page.waitForFunction(()=>!practiceBusy);
+      assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts?.length||0),0);assert(await page.locator('#practiceAnswer').isVisible());
+      const untouched=await page.evaluate(async()=>await(await fetch('./mock-ai/last-request')).json());assert.equal(untouched,null);
+      await page.evaluate(()=>{storeUpdate=window.__practiceStore});
+      await page.getByRole('button',{name:'提交 AI 分析',exact:true}).click();await page.waitForFunction(()=>!practiceBusy && practiceSession.viewOnly);
+      assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts.length),1);
+      assert(await page.getByRole('heading',{name:'AI 参考答案',exact:true}).isVisible());
+      const sent=await page.evaluate(async()=>await(await fetch('./mock-ai/last-request')).json());assert(sent.messages[1].content.some(x=>x.type==='image_url'));assert(JSON.stringify(sent).includes('求 g(x)=x²−4x+5 的最小值。'));assert(!JSON.stringify(sent).includes('没看清题目'));
+      await page.waitForFunction(()=>!document.getElementById('toast').classList.contains('show'));
+      await page.locator('.practice-feedback').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'practice-feedback-375x812.png'),animations:'disabled'});
+      await page.getByRole('button',{name:'再做一次',exact:true}).click();await page.locator('#practiceAnswer').fill('第二次作答');
+      serverChild.send({apiMode:'fail'});await page.waitForTimeout(100);await page.getByRole('button',{name:'提交 AI 分析',exact:true}).click();await page.waitForFunction(()=>!practiceBusy && practiceSession.viewOnly);
+      assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts.length),2);assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts[1].status),'error');
+      serverChild.send({apiMode:'unclear'});await page.waitForTimeout(100);await page.getByRole('button',{name:'请 AI 分析这次作答',exact:true}).click();await page.waitForFunction(()=>!practiceBusy);
+      assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts.length),2);assert.equal(await page.evaluate(()=>allErrors[0].practiceAttempts[1].feedback.verdict),'uncertain');
+      await page.evaluate(async()=>{const e=allErrors[0];await storeUpdate(e.id,{analysis:{...e.analysis,generatedAt:new Date().toISOString(),similar:['另一道新题']}});await loadErrors();navigateTo('home')});
+      assert.equal(await page.locator('#homePractice .practice-history-card').count(),2);
+      await page.locator('#homePractice').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'practice-home-375x812.png'),animations:'disabled'});
+      await page.evaluate(()=>openPracticeHistory());await page.locator('.practice-history-card').last().click();assert((await page.locator('#practiceContent').textContent()).includes('求 g(x)=x²−4x+5 的最小值。'));
+      assert.deepEqual(await page.evaluate(()=>{const x=normalizeRecords(JSON.parse(JSON.stringify(allErrors)));return[x[0].practiceAttempts.length,!!x[0].practiceAttempts[0].answerImage,x[0].practiceAttempts[0].feedback.referenceAnswer]}),[2,true,'g(x)=(x−2)²+1，最小值为 1。']);
+      console.log('PRACTICE_SAVE: storage failure preserves draft and prevents AI request; photo payload uses variant question; failed AI keeps answer; retry no duplicate; uncertain verdict; regenerated suggestions retain original practice snapshot; backup retains image/feedback');
+    });
+    killServer();await verifyServerStopped();
+    await page.getByRole('button',{name:'再做一次',exact:true}).click();await page.locator('#practiceAnswer').fill('离线作答');await page.getByRole('button',{name:'保存作答',exact:true}).click();await page.waitForFunction(()=>!practiceBusy && practiceSession.viewOnly);
+    await context.close();await open();await page.goto(base+'/app.html#practice-history');await page.waitForFunction(()=>allErrors[0]?.practiceAttempts?.length===3);
+    assert.equal(await page.locator('#practiceHistoryList .practice-history-card').count(),3);
+    console.log('PRACTICE_OFFLINE: server killed; third attempt saved; cold browser restart restores three history records');
+    assert.deepEqual(errors.filter(x=>!x.includes('/mock-ai/chat/completions')),[]);
+    fs.writeFileSync(path.join(output,'practice-acceptance.json'),JSON.stringify({date:new Date().toISOString(),results,notes:'Mock vision grading only; stopped-server persistence and cold restart verified. Physical handwriting accuracy and camera not tested.'},null,2));return;
+  }
   if(process.argv.includes('--organize-only')) {
     page.on('response',response=>{if(response.status()>=400)console.log('HTTP_ERROR',response.status(),response.url())});
     await page.goto(base+'/app.html');await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
@@ -101,7 +153,7 @@ if(process.argv.includes('--serve')) {
     await test('Old cache recovery preserves records, key and OCR cache',async()=>{
       await page.goto(base+'/update.html');
       await page.getByRole('button',{name:'更新应用，保留错题'}).click();
-      await page.waitForURL('**/app.html?release=organize-v1#profile',{timeout:60000});
+      await page.waitForURL('**/app.html?release=practice-v1#profile',{timeout:60000});
       await page.waitForFunction(()=>allErrors.length===1);
       assert.equal(await readState(),before);
       assert(await page.evaluate(()=>settings.aiKey==='local-mock-key'));
@@ -110,7 +162,7 @@ if(process.argv.includes('--serve')) {
       assert.equal(await page.locator('#aiModelChoice').inputValue(),'deepseek-flash');
       await page.locator('#aiProvider').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'recovered-picker-375x812.png'),animations:'disabled'});
       await page.evaluate(()=>fillSettingsForm());
-      console.log('RECOVERY: real d7c0961 cached shell -> update.html -> organize-v1; identical records, image and key; independent OCR cache marker retained');
+      console.log('RECOVERY: real d7c0961 cached shell -> update.html -> practice-v1; identical records, image and key; independent OCR cache marker retained');
     });
     killServer();await verifyServerStopped();
     await test('Visible classification and paper source save, edit, filter and backup',async()=>{

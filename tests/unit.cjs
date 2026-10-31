@@ -2,11 +2,12 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const context = vm.createContext({ console, URL, document:{addEventListener(){}}, window:{}, setTimeout, clearTimeout });
+const context = vm.createContext({ console, URL, document:{addEventListener(){}}, window:{addEventListener(){}}, setTimeout, clearTimeout });
 vm.runInContext(fs.readFileSync('js/reliability.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/ai-client.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/app.js','utf8'),context);
 vm.runInContext(fs.readFileSync('js/ocr-review.js','utf8'),context);
+vm.runInContext(fs.readFileSync('js/practice.js','utf8'),context);
 const run=code=>JSON.parse(JSON.stringify(vm.runInContext(code,context)));
 const samples = [
   ['f(x)=x^2; x >= 0', 'f(x)=x²; x ≥ 0'],
@@ -58,3 +59,13 @@ assert.equal(run('assessOcrQuality({text:" ",confidence:90}).low'),true);
 assert.equal(run('assessOcrQuality({text:"score unavailable"}).confidence'),null);
 assert.equal(run('assessOcrQuality({text:"weak words",confidence:85,words:Array.from({length:6},()=>({text:"x",confidence:20}))}).low'),true);
 console.log('PASS: OCR quality warning handles low scores, empty output and weak words; score is not accuracy.');
+assert.equal(run('questionTitle({paperName:"周测1",questionNo:"1",text:"没看清题目"})'),'周测1 · 第 1 题');
+assert.equal(run('questionNote({image:"data:image/png;base64,YQ==",text:"没看清题目"})'),'没看清题目');
+const practice={id:'attempt-1',questionKey:'key',question:'变式题',answerText:'答案',answerImage:'',createdAt:'2026-10-31',updatedAt:'2026-10-31',status:'saved'};
+assert.equal(run(`normalizeRecords([{text:'原题',note:'备注',practiceAttempts:[${JSON.stringify(practice)}]}])[0].practiceAttempts[0].question`),'变式题');
+assert.throws(()=>run(`normalizePracticeAttempts([{...${JSON.stringify(practice)},answerImage:'https://tracking.example/image.png'}])`),/照片/);
+assert.throws(()=>run(`normalizePracticeAttempts([{...${JSON.stringify(practice)},id:"bad' onclick="}])`),/ID/);
+assert.throws(()=>run(`normalizePracticeAttempts([{...${JSON.stringify(practice)},answerText:123}])`),/answerText/);
+assert.throws(()=>run('parsePracticeFeedback("not json")'),/格式/);
+assert.equal(run('parsePracticeFeedback(JSON.stringify({analysis:"看不清",referenceAnswer:"请补图",verdict:"unknown"})).verdict'),'uncertain');
+console.log('PASS: source-first titles, legacy notes, practice backup validation and uncertain AI feedback.');

@@ -64,6 +64,7 @@ let currentPage = 'home';
 let searchQuery = '';
 let paperFilter = '', topicFilter = '';
 let sourcePageImage = null, sourcePageName = '';
+let saveImageOnlyMode = false;
 let subjectFilter = 'all';
 let statusFilter = 'all';
 let dateFilter = 'all';
@@ -261,7 +262,8 @@ function updateNet() {
 /* ===================== 导航 ===================== */
 
 function navigateTo(page) {
-  if (page === currentPage || reviewBusy || ocrBusy) return;
+  if (page === currentPage || reviewBusy || ocrBusy || practiceBusy) return;
+  if (currentPage === 'practice') stashPracticeDraft();
   if (page !== 'capture' && cameraStream) stopCamera();
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -270,14 +272,15 @@ function navigateTo(page) {
 
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
 
-  const titles = { home: '错题助手', capture: '拍照录入', book: '错题本', review: '间隔复习', profile: '我的' };
+  const titles = { home: '错题助手', capture: '拍照录入', book: '错题本', review: '间隔复习', profile: '我的', practice: '举一反三作答', 'practice-history': '练习记录' };
   document.getElementById('headerTitle').textContent = titles[page] || '错题助手';
-  document.getElementById('headerBack').classList.toggle('show', page === 'capture');
+  document.getElementById('headerBack').classList.toggle('show', ['capture','practice','practice-history'].includes(page));
 
   currentPage = page;
   if (page === 'home') updateHome();
   if (page === 'book') renderErrorList();
   if (page === 'review') initReview();
+  if (page === 'practice-history') renderPracticeHistory();
   if (page === 'profile') {
     fillSettingsForm();
     renderSubjectSettings();
@@ -290,6 +293,7 @@ function navigateTo(page) {
 
 function applyInitialHash() {
   const raw = location.hash.replace('#', '');
+  if (raw === 'practice' || raw === 'practice-history') { openPracticeHistory(); return; }
   if (raw === 'parent-report') {
     showParentReport();
     return;
@@ -307,6 +311,7 @@ function applyInitialHash() {
 }
 
 function goBack() {
+  if (currentPage === 'practice') { returnFromPractice(); return; }
   navigateTo('home');
 }
 
@@ -336,6 +341,7 @@ function updateHome() {
   document.getElementById('statMastered').textContent = mastered;
   renderWeakTopics();
   renderRecent();
+  renderHomePractice();
 }
 
 function renderWeakTopics() {
@@ -1397,6 +1403,7 @@ function classificationFields(subject, topic = '', paperName = '', questionNo = 
 }
 
 function openSaveModal(text, guessedSubject, imageOnly = false) {
+  saveImageOnlyMode = imageOnly;
   editingId = null;
   saveImageSnapshot = capturedImage;
   const subject = guessedSubject || settings.subjects[0] || '数学';
@@ -1445,6 +1452,7 @@ async function submitSaveForm(continuePage = false) {
   const topic = document.getElementById('formTopic').value;
   const paperName = document.getElementById('formPaperName').value.trim().slice(0, 120);
   const questionNo = document.getElementById('formQuestionNo').value.trim().slice(0, 30);
+  const note = (editingId ? document.getElementById('formNote').value.trim() : saveImageOnlyMode ? document.getElementById('formText').value.trim() : '').slice(0,300);
   const cause = document.getElementById('formCause').value || '';
   const answer = document.getElementById('formAnswer').value.trim();
   const ocrConfirmation = document.getElementById('ocrTextConfirmed');
@@ -1460,17 +1468,17 @@ async function submitSaveForm(continuePage = false) {
   const now = new Date().toISOString();
   if (editingId) {
     await storeUpdate(editingId, {
-      text, subject, topic: topic || '未分类', paperName, questionNo, cause, answer,
+      text, subject, topic: topic || '未分类', paperName, questionNo, note, cause, answer,
       updatedAt: now
     });
     const target = allErrors.find(e => e.id === editingId);
-    if (target) Object.assign(target, { text, subject, topic: topic || '未分类', paperName, questionNo, cause, answer, updatedAt: now });
+    if (target) Object.assign(target, { text, subject, topic: topic || '未分类', paperName, questionNo, note, cause, answer, updatedAt: now });
     showToast('已更新');
   } else {
     const item = {
       subject,
       topic: topic || '未分类',
-      paperName, questionNo,
+      paperName, questionNo, note,
       cause,
       text,
       answer,
@@ -1519,6 +1527,7 @@ function openEditModal(id) {
   const html = `
     <div class="form-stack record-save-form">
       ${classificationFields(e.subject, e.topic, e.paperName || '', e.questionNo || '')}
+      <div><label class="field-label" for="formNote">备注（选填）</label><input id="formNote" maxlength="300" value="${escapeHtml(questionNote(e))}" placeholder="例如：没看清题目"></div>
       <div>
         <label class="field-label">题目内容</label>
         <textarea id="formText" rows="6">${escapeHtml(e.text)}</textarea>
@@ -1588,7 +1597,7 @@ function getFilteredErrors() {
     if (statusFilter === 'pending' && e.status === 'mastered') return false;
     if (statusFilter === 'mastered' && e.status !== 'mastered') return false;
     if (searchQuery) {
-      const hay = [e.text, e.topic, e.answer, e.subject, e.paperName, e.questionNo].filter(Boolean).join(' ').toLowerCase();
+      const hay = [e.text, e.note, e.topic, e.answer, e.subject, e.paperName, e.questionNo].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(searchQuery)) return false;
     }
     if (dateFilter !== 'all') {
@@ -1604,8 +1613,14 @@ function getFilteredErrors() {
 }
 
 function questionTitle(item) {
+  if (item.paperName || item.questionNo) return `${item.paperName || item.subject || '错题'}${item.questionNo ? ' · 第 ' + item.questionNo.replace(/^第\s*|\s*题$/g,'') + ' 题' : ''}`;
   const text = (item.text || '').trim();
   return !text || ['图片错题', '待补充题目文字'].includes(text) ? `${item.paperName || item.subject || '错题'} · ${item.questionNo ? '题号 ' + item.questionNo : '题目 ' + item.id}` : shortText(text, 36);
+}
+
+function questionNote(item) {
+  if (typeof item.note === 'string') return item.note;
+  return item.image && !item.ocrRaw && item.text && !['图片错题','待补充题目文字'].includes(item.text) ? item.text : '';
 }
 
 function renderClassificationFilters() {
@@ -1713,7 +1728,7 @@ function renderErrorList() {
           </span>
         </div>
         ${e.image ? `<img class="question-thumb" src="${imageHtml(e.image)}" alt="${escapeHtml(questionTitle(e))}" loading="lazy">` : `<div class="ec-preview">${escapeHtml(e.text)}</div>`}
-        ${e.paperName || e.questionNo ? `<div class="question-source">${escapeHtml(e.paperName || '未填试卷')}${e.questionNo ? ' · 题号 ' + escapeHtml(e.questionNo) : ''}</div>` : ''}
+        ${questionNote(e) ? `<div class="question-note">备注：${escapeHtml(questionNote(e))}</div>` : ''}
         <div class="ec-tags">${statusTag}${e.topic && e.topic !== '未分类' ? `<span class="tag">${escapeHtml(e.topic)}</span>` : ''}${e.cause ? causeTag : ''}${aiTag}</div>
       </div>
     `;
@@ -1791,7 +1806,7 @@ async function batchDelete() {
     showToast('请先选择错题');
     return;
   }
-  if (!confirm(`确定删除选中的 ${selectedIds.size} 道错题？`)) return;
+  if (!confirm(`确定删除选中的 ${selectedIds.size} 道错题及其举一反三作答记录？`)) return;
   for (const id of selectedIds) {
     await storeDelete(id);
   }
@@ -1846,6 +1861,7 @@ function openDetail(id) {
       </div>
     </div>
     <div class="detail-classification"><p>${escapeHtml(e.paperName || '尚未填写试卷来源')}${e.questionNo ? ' · 题号 ' + escapeHtml(e.questionNo) : ''}</p><button class="text-btn" onclick="openEditModal(${e.id})">修改分类 / 试卷来源</button></div>
+    ${questionNote(e) ? `<p class="question-note">备注：${escapeHtml(questionNote(e))}</p>` : ''}
     ${e.image ? `<div class="modal-content-block"><img class="detail-img" src="${imageHtml(e.image)}" alt="错题图片"></div>` : ''}
     ${e.image ? `<details class="saved-text-tools"><summary>提取图片文字（选用）</summary><p class="field-help">原图已经保存。印刷体可离线识别；手写和公式可尝试自配视觉模型，结果需要核对。</p><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},false)">离线提取文字</button><button class="btn outline" onclick="recognizeSavedQuestion(${e.id},true)">${canUseAi() ? 'AI 识图（联网）' : '配置 AI 识图'}</button></details>` : ''}
     <div class="modal-content-block">
@@ -1880,15 +1896,14 @@ function openDetail(id) {
 function renderSimilar(e) {
   const list = e.analysis && e.analysis.similar;
   if (!Array.isArray(list) || list.length === 0) return '';
-  const done = e.analysis.similarDone || [];
   return `
     <div class="modal-content-block">
       <div class="section-title"><span>${e.analysis.source === 'ai' ? '举一反三' : '复习练习'}</span></div>
       <div class="similar-list">
         ${list.map((q, i) => `
-          <button class="similar-item ${done.includes(i) ? 'done' : ''}" onclick="toggleSimilar(${e.id}, ${i})">
-            <span class="similar-check">${done.includes(i) ? '✓' : ''}</span>
-            <span>${escapeHtml(q)}</span>
+          <button class="similar-item" onclick="openSimilarPractice(${e.id}, ${i})">
+            <span class="similar-check">${i + 1}</span>
+            <span>${escapeHtml(q)}<small class="practice-link-state">${(e.practiceAttempts || []).some(a => a.questionKey === practiceQuestionKey(e,i)) ? '已有作答 · 点击查看' : '进入作答 →'}</small></span>
           </button>
         `).join('')}
       </div>
@@ -1897,17 +1912,11 @@ function renderSimilar(e) {
 }
 
 async function toggleSimilar(id, index) {
-  const e = findError(id);
-  if (!e || !e.analysis) return;
-  const done = e.analysis.similarDone || [];
-  const next = done.includes(index) ? done.filter(x => x !== index) : [...done, index];
-  e.analysis.similarDone = next;
-  await storeUpdate(id, { analysis: e.analysis });
-  openDetail(id);
+  openSimilarPractice(id,index);
 }
 
 async function deleteError(id) {
-  if (!confirm('确定要删除这条错题吗？此操作不可恢复。')) return;
+  if (!confirm('确定要删除这条错题及其练习记录吗？此操作不可恢复。')) return;
   await storeDelete(id);
   await loadErrors();
   closeModal();

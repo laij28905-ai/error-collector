@@ -2,10 +2,10 @@
 importScripts('./ocr-assets.js');
 const SCOPE = new URL(self.registration.scope).pathname;
 const PREFIX = 'tf-shell:' + SCOPE + ':';
-const CACHE_NAME = PREFIX + 'organize-v1';
+const CACHE_NAME = PREFIX + 'practice-v1';
 const OCR_CACHE = 'tf-ocr:' + SCOPE + ':' + OCR_PACK.version;
 const APP_SHELL = ['./', './index.html', './app.html', './styles.css', './js/app.js',
-  './js/reliability.js', './js/ai-client.js', './js/ocr-review.js', './js/offline.js', './js/album-enhance.js', './js/crop-enhance.js',
+  './js/reliability.js', './js/ai-client.js', './js/ocr-review.js', './js/practice.js', './js/offline.js', './js/album-enhance.js', './js/crop-enhance.js',
   './vendor/dexie.min.js', './manifest.json', './ocr-assets.js'];
 const absolute = path => new URL(path, self.registration.scope).href;
 
@@ -62,7 +62,7 @@ self.addEventListener('activate', event => {
 });
 let ocrPreparation = null;
 self.addEventListener('message', event => {
-  if (event.data?.type === 'GET_VERSION') event.ports[0]?.postMessage({ version: 'organize-v1' });
+  if (event.data?.type === 'GET_VERSION') event.ports[0]?.postMessage({ version: 'practice-v1' });
   if (event.data?.type === 'APPLY_UPDATE') event.waitUntil(self.skipWaiting());
   if (event.data?.type === 'PREPARE_OCR') {
     if (!ocrPreparation) ocrPreparation = prepareOcr().finally(() => { ocrPreparation = null; });
