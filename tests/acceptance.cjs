@@ -419,7 +419,7 @@ if(process.argv.includes('--serve')) {
     await page.evaluate(()=>testAiVision());assert((await page.locator('#aiTestStatus').textContent()).includes('Key 无效'));
     serverChild.send({apiMode:'fail'});await page.waitForTimeout(100);await page.evaluate(()=>generateAnalysis(allErrors.find(e=>e.image).id,true));
     assert.equal(await page.evaluate(()=>allErrors.find(e=>e.image).analysis.source),'template');
-    await page.evaluate(()=>{closeModal();settings.aiEndpoint='';});
+    await page.evaluate(()=>{closeModal();settings.aiEndpoint='';fillSettingsForm();});
   }
   await test('Online AI response and failed-network template fallback',verifyAiWorkflow);
   await test('Network timeout covers a stalled response body',async()=>{
