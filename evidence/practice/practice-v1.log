@@ -1,0 +1,10 @@
+HTTP_SERVER_READY {"pid":103388,"port":52868}
+PRACTICE_NAV: source title wins; note separate; opening does not mark done; back restores scroll; unsaved draft retained
+PASS Source title and independent practice restore detail scroll
+PRACTICE_SAVE: storage failure preserves draft and prevents AI request; photo payload uses variant question; failed AI keeps answer; retry no duplicate; uncertain verdict; regenerated suggestions retain original practice snapshot; backup retains image/feedback
+PASS Photo submission persists before AI, retries and history preserve snapshots
+COMMAND: taskkill.exe /PID 103388 /T /F
+EXIT_CODE: 0
+SUCCESS: The process with PID 103388 (child process of PID 94820) has been terminated.
+HTTP_PROBE_AFTER_KILL: ECONNREFUSED
+PRACTICE_OFFLINE: server killed; third attempt saved; cold browser restart restores three history records

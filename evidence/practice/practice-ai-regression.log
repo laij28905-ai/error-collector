@@ -1,0 +1,5 @@
+HTTP_SERVER_READY {"pid":106284,"port":54074}
+AI_PICKER: four presets; hidden automatic address/model; legacy model preserved then corrected by selection; same-service key retained; saved choice restored; custom fields available
+AI_VISION_PAYLOAD: image attached; provider key cleared on switch; incorrect vision probe rejected; capture OCR opened editor
+AI_MODEL_ERROR: HTTP 400 Model Not Exist gives actionable model-selection message
+PASS Online AI response and failed-network template fallback
